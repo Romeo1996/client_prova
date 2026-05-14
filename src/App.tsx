@@ -1,33 +1,73 @@
-import { CopilotKitProvider, CopilotSidebar } from "@copilotkit/react-core/v2";
+import { useEffect, useState } from "react";
+import { CopilotKitProvider } from "@copilotkit/react-core/v2";
 import { HttpAgent } from "@ag-ui/client";
+import { Toast } from "primereact/toast";
 import "@copilotkit/react-core/v2/styles.css";
+
+import { AGENT_URL } from "./services/api";
+import { L } from "./labels";
+import { useTheme } from "./hooks/useTheme";
+import { useThreads } from "./hooks/useThreads";
+import { useAppToast } from "./hooks/useToast";
+import { Sidebar } from "./components/layout/Sidebar";
+import { ChatView } from "./components/Chat/ChatView";
+
 import "./App.css";
-import it from "./it.json";
 
-const agent = new HttpAgent({
-  url: "/api/agent/chat",
-});
+const agent = new HttpAgent({ url: AGENT_URL });
 
-function App() {
+export default function App() {
+  const toastRef = useAppToast();
+  const { dark, toggle: toggleTheme } = useTheme();
+  const {
+    threads,
+    activeId,
+    newChat,
+    selectThread,
+    deleteThread,
+    tryUpdateTitle,
+  } = useThreads();
+
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    if (!activeId) return;
+    const thread = threads.find((t) => t.id === activeId);
+    if (thread?.title === L.thread.defaultTitle) {
+      const timer = setTimeout(() => tryUpdateTitle(activeId), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeId, threads, tryUpdateTitle]);
+
+  const handleNewChat = () => {
+    newChat();
+    setSidebarOpen(false);
+  };
+
   return (
-    <CopilotKitProvider agents__unsafe_dev_only={{ default: agent }}>
-      <main style={{ padding: "2rem", textAlign: "center" }}>
-        <h1>Client Prova con ADK Agent</h1>
-        <p>
-          Interfaccia AG-UI (CopilotKit) per il tuo server ADK remoto.
-          Apri il pannello laterale per chattare con l'agente.
-        </p>
-      </main>
-      <CopilotSidebar
-        defaultOpen={true}
-        agentId="default"
-        labels={{
-          chatInputPlaceholder: it.copilotkit.chat.inputPlaceholder,
-          welcomeMessageText: it.copilotkit.chat.initialMessage,
-        }}
-      />
+    <>
+      <Toast ref={toastRef} />
+      <CopilotKitProvider agents__unsafe_dev_only={{ default: agent }}>
+      <div className="app-layout">
+        <Sidebar
+          threads={threads}
+          activeId={activeId}
+          dark={dark}
+          closed={!sidebarOpen}
+          onNewChat={handleNewChat}
+          onSelectThread={selectThread}
+          onDeleteThread={deleteThread}
+          onToggleTheme={toggleTheme}
+          onClose={() => setSidebarOpen(false)}
+        />
+
+        <ChatView
+          threadId={activeId}
+          sidebarOpen={sidebarOpen}
+          onOpenSidebar={() => setSidebarOpen(true)}
+        />
+      </div>
     </CopilotKitProvider>
+    </>
   );
 }
-
-export default App;
