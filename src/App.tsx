@@ -1,7 +1,6 @@
-import { CopilotKitProvider } from "@copilotkit/react-core/v2";
-import { CopilotSidebar } from "@copilotkit/react-ui/v2";
+import { CopilotKitProvider, CopilotSidebar } from "@copilotkit/react-core/v2";
 import { HttpAgent } from "@ag-ui/client";
-import "@copilotkit/react-ui/v2/styles.css";
+import "@copilotkit/react-core/v2/styles.css";
 import "./App.css";
 import it from "./it.json";
 
