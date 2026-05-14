@@ -33,7 +33,6 @@ export function ChatView({
             userMessage: UserBubble as any,
             cursor: ChatCursor as any,
           }}
-          feather="hidden"
           inputContainer="bg-background/80 backdrop-blur-sm border-t border-border px-4 py-3"
           input={{
             textArea:
