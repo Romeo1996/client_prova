@@ -1,0 +1,25 @@
+{
+  "copilotkit": {
+    "chat": {
+      "inputPlaceholder": "Scrivi un messaggio...",
+      "sendButtonLabel": "Invia",
+      "thinking": "Sto pensando...",
+      "error": "Si è verificato un errore. Riprova.",
+      "retryButtonLabel": "Riprova",
+      "closeButtonLabel": "Chiudi",
+      "openButtonLabel": "Apri chat",
+      "title": "Assistente ADK",
+      "initialMessage": "Ciao! Come posso aiutarti oggi?",
+      "suggestedQuestions": [
+        "Cosa puoi fare?",
+        "Raccontami una curiosità",
+        "Fammi un esempio di utilizzo"
+      ]
+    },
+    "sidebar": {
+      "title": "Assistente ADK",
+      "newChat": "Nuova chat",
+      "clearHistory": "Cancella cronologia"
+    }
+  }
+}
