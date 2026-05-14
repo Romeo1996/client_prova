@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  client_prova:
+    build: .
+    container_name: client_prova
+    ports:
+      - "8087:80"
+    restart: unless-stopped
