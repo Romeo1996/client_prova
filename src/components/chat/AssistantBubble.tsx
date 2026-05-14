@@ -1,27 +1,11 @@
-import { motion } from "framer-motion";
 import { Bot } from "lucide-react";
 import { cn } from "../../lib/utils";
 
-interface AssistantMessage {
-  id: string;
-  role: "assistant";
-  content: string;
-}
-
 interface AssistantBubbleProps {
-  message: AssistantMessage;
+  message: { id: string; content: string };
   isRunning?: boolean;
   className?: string;
 }
-
-const bubbleVariants = {
-  initial: { opacity: 0, y: 8 },
-  animate: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.3, ease: "easeOut" },
-  },
-};
 
 export function AssistantBubble({
   message,
@@ -29,11 +13,11 @@ export function AssistantBubble({
   className,
 }: AssistantBubbleProps) {
   return (
-    <motion.div
-      variants={bubbleVariants}
-      initial="initial"
-      animate="animate"
-      className={cn("flex gap-3 w-full", className)}
+    <div
+      className={cn(
+        "flex gap-3 w-full animate-in fade-in slide-in-from-bottom-1 duration-300",
+        className,
+      )}
     >
       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-accent-soft flex items-center justify-center">
         <Bot size={14} className="text-accent" />
@@ -47,17 +31,17 @@ export function AssistantBubble({
           {message.content}
         </div>
 
-          {isRunning && (
-            <div className="flex gap-1 mt-2 px-1">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="w-1.5 h-1.5 rounded-full bg-primary-secondary typing-dot"
-                />
-              ))}
-            </div>
-          )}
+        {isRunning && (
+          <div className="flex gap-1 mt-2 px-1">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="w-1.5 h-1.5 rounded-full bg-primary-secondary typing-dot"
+              />
+            ))}
+          </div>
+        )}
       </div>
-    </motion.div>
+    </div>
   );
 }
