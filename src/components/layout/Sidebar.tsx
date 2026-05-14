@@ -30,10 +30,10 @@ export function Sidebar({
   return (
     <div
       className={`bg-sidebar border-r border-border flex flex-col transition-all duration-300 overflow-hidden ${
-        closed ? "w-0" : "w-[clamp(16rem,22%,22rem)]"
+        closed ? "w-0" : "w-72"
       }`}
     >
-      <div className="flex flex-col h-full min-w-[clamp(16rem,22%,22rem)]">
+      <div className="flex flex-col h-full min-w-72">
         <div className="p-3 border-b border-border flex gap-2 items-center">
           <UIButton
             label={L.sidebar.newChat}

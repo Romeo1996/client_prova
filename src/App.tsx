@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CopilotKit } from "@copilotkit/react-core";
+import { CopilotKitProvider } from "@copilotkit/react-core/v2";
 import { HttpAgent } from "@ag-ui/client";
 import { Toast } from "primereact/toast";
 
@@ -44,7 +44,7 @@ export default function App() {
   return (
     <>
       <Toast ref={toastRef} />
-      <CopilotKit agent={agent}>
+      <CopilotKitProvider agents__unsafe_dev_only={{ default: agent }}>
         <div className="flex h-dvh bg-background">
           <Sidebar
             threads={threads}
@@ -64,7 +64,7 @@ export default function App() {
             onOpenSidebar={() => setSidebarOpen(true)}
           />
         </div>
-      </CopilotKit>
+      </CopilotKitProvider>
     </>
   );
 }
