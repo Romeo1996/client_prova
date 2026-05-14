@@ -19,7 +19,7 @@ const bubbleVariants = {
   animate: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] },
+    transition: { duration: 0.3, ease: "easeOut" },
   },
 };
 
@@ -47,17 +47,16 @@ export function AssistantBubble({
           {message.content}
         </div>
 
-        {isRunning && (
-          <div className="flex gap-1 mt-2 px-1">
-            {[0, 1, 2].map((i) => (
-              <span
-                key={i}
-                className="w-1.5 h-1.5 rounded-full bg-primary-secondary animate-bounce"
-                style={{ animationDelay: `${i * 0.15}s` }}
-              />
-            ))}
-          </div>
-        )}
+          {isRunning && (
+            <div className="flex gap-1 mt-2 px-1">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="w-1.5 h-1.5 rounded-full bg-primary-secondary typing-dot"
+                />
+              ))}
+            </div>
+          )}
       </div>
     </motion.div>
   );

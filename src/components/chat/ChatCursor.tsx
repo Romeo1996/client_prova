@@ -1,27 +1,14 @@
-import { motion } from "framer-motion";
+interface CursorProps {
+  className?: string;
+}
 
-const dotVariants = {
-  animate: (i: number) => ({
-    y: [0, -4, 0],
-    transition: {
-      repeat: Infinity,
-      duration: 0.6,
-      delay: i * 0.15,
-      ease: "easeInOut",
-    },
-  }),
-};
-
-export function ChatCursor() {
+export function ChatCursor({ className }: CursorProps) {
   return (
-    <div className="flex gap-1 px-4 py-3">
+    <div className={`flex gap-1 px-4 py-3 ${className ?? ""}`}>
       {[0, 1, 2].map((i) => (
-        <motion.span
+        <div
           key={i}
-          custom={i}
-          variants={dotVariants}
-          animate="animate"
-          className="w-1.5 h-1.5 rounded-full bg-primary-secondary"
+          className="w-1.5 h-1.5 rounded-full bg-primary-secondary typing-dot"
         />
       ))}
     </div>

@@ -20,10 +20,10 @@ export function ChatHeader({ sidebarOpen, onOpenSidebar }: ChatHeaderProps) {
             tooltip={L.chat.openSidebar}
           />
         )}
-        <span className="text-sm font-medium text-primary">ADK Chat</span>
-        <span className="text-xs bg-accent-soft text-accent px-2 py-0.5 rounded-full font-medium">
+        <div className="text-sm font-medium text-primary">ADK Chat</div>
+        <div className="text-xs bg-accent-soft text-accent px-2 py-0.5 rounded-full font-medium">
           online
-        </span>
+        </div>
       </div>
     </div>
   );
