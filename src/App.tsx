@@ -2,8 +2,8 @@ import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import { useAgUiRuntime } from "@assistant-ui/react-ag-ui";
 import { HttpAgent } from "@ag-ui/client";
 import { Thread } from "./components/assistant-ui/thread";
-import { ThreadListSidebar } from "./components/assistant-ui/threadlist-sidebar";
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "./components/ui/sidebar";
+import { ThreadList } from "./components/assistant-ui/thread-list";
+import { Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger } from "./components/ui/sidebar";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { AGENT_URL } from "./services/api";
 
@@ -16,7 +16,11 @@ export default function App() {
       <AssistantRuntimeProvider runtime={runtime}>
         <SidebarProvider>
           <div className="flex h-dvh w-full">
-            <ThreadListSidebar />
+            <Sidebar>
+              <SidebarContent className="px-2">
+                <ThreadList />
+              </SidebarContent>
+            </Sidebar>
             <SidebarInset>
               <SidebarTrigger className="absolute top-4 left-4" />
               <Thread />

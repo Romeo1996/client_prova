@@ -240,6 +240,13 @@ const AssistantMessage: FC = () => {
             }
           }}
         </MessagePrimitive.GroupedParts>
+        <AuiIf condition={(s) => s.thread.isRunning}>
+          <div className="flex gap-1 px-2 py-3">
+            <div className="size-1.5 rounded-full bg-muted-foreground animate-bounce" />
+            <div className="size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:150ms]" />
+            <div className="size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:300ms]" />
+          </div>
+        </AuiIf>
         <MessageError />
       </div>
 
