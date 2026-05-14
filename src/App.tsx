@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { CopilotKitProvider } from "@copilotkit/react-core/v2";
+import { CopilotKit } from "@copilotkit/react-core";
 import { HttpAgent } from "@ag-ui/client";
 import { Toast } from "primereact/toast";
-import "@copilotkit/react-core/v2/styles.css";
 
 import { AGENT_URL } from "./services/api";
 import { L } from "./labels";
@@ -11,8 +10,6 @@ import { useThreads } from "./hooks/useThreads";
 import { useAppToast } from "./hooks/useToast";
 import { Sidebar } from "./components/layout/Sidebar";
 import { ChatView } from "./components/Chat/ChatView";
-
-import "./App.css";
 
 const agent = new HttpAgent({ url: AGENT_URL });
 
@@ -47,27 +44,27 @@ export default function App() {
   return (
     <>
       <Toast ref={toastRef} />
-      <CopilotKitProvider agents__unsafe_dev_only={{ default: agent }}>
-      <div className="app-layout">
-        <Sidebar
-          threads={threads}
-          activeId={activeId}
-          dark={dark}
-          closed={!sidebarOpen}
-          onNewChat={handleNewChat}
-          onSelectThread={selectThread}
-          onDeleteThread={deleteThread}
-          onToggleTheme={toggleTheme}
-          onClose={() => setSidebarOpen(false)}
-        />
+      <CopilotKit agent={agent}>
+        <div className="flex h-dvh bg-background">
+          <Sidebar
+            threads={threads}
+            activeId={activeId}
+            dark={dark}
+            closed={!sidebarOpen}
+            onNewChat={handleNewChat}
+            onSelectThread={selectThread}
+            onDeleteThread={deleteThread}
+            onToggleTheme={toggleTheme}
+            onClose={() => setSidebarOpen(false)}
+          />
 
-        <ChatView
-          threadId={activeId}
-          sidebarOpen={sidebarOpen}
-          onOpenSidebar={() => setSidebarOpen(true)}
-        />
-      </div>
-    </CopilotKitProvider>
+          <ChatView
+            threadId={activeId}
+            sidebarOpen={sidebarOpen}
+            onOpenSidebar={() => setSidebarOpen(true)}
+          />
+        </div>
+      </CopilotKit>
     </>
   );
 }
