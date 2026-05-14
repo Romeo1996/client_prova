@@ -33,7 +33,6 @@ export function ChatView({
             userMessage: UserBubble as any,
             cursor: ChatCursor as any,
           }}
-          inputContainer="bg-background/80 backdrop-blur-sm border-t border-border px-4 py-3"
           input={{
             textArea:
               "w-full bg-card border border-border rounded-xl px-4 py-3 pr-12 text-sm text-primary placeholder:text-primary-secondary focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 resize-none max-h-[200px] leading-relaxed",
