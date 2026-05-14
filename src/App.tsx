@@ -1,24 +1,19 @@
-import { CopilotKit } from "@copilotkit/react-core";
-import { CopilotSidebar } from "@copilotkit/react-ui";
+import { CopilotKitProvider, CopilotSidebar } from "@copilotkit/react-core/v2";
 import { HttpAgent } from "@ag-ui/client";
-import "@copilotkit/react-ui/styles.css";
+import "@copilotkit/react-core/v2/styles.css";
 import "./App.css";
 import it from "./it.json";
 
-const ADK_BACKEND_URL = "http://130.110.8.177:8086";
-
-const adkAgent = new HttpAgent({
-  url: ADK_BACKEND_URL,
+const agent = new HttpAgent({
+  url: "/api/agent/chat",
 });
 
 function App() {
   return (
-    <CopilotKit
-      selfManagedAgents={{ "adk_agent": adkAgent }}
-      agent="adk_agent"
-    >
+    <CopilotKitProvider agents__unsafe_dev_only={{ default: agent }}>
       <CopilotSidebar
         defaultOpen={true}
+        agentId="default"
         labels={{
           title: it.copilotkit.sidebar.title,
           initial: it.copilotkit.chat.initialMessage,
@@ -32,7 +27,7 @@ function App() {
           </p>
         </main>
       </CopilotSidebar>
-    </CopilotKit>
+    </CopilotKitProvider>
   );
 }
 
