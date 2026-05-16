@@ -435,7 +435,7 @@ export function useCustomRuntime(
         onEdit: async (message: AppendMessage) => {
           await core.edit(message);
         },
-        onReload: async (parentId: string | null, config: { runConfig?: any }) => {
+        onReload: async (parentId: string | null, config: { runConfig?: any } = {}) => {
           const adapter = threadListAdapter;
           if (adapter?.onSwitchToNewThread) {
             const currentMessages = core.getMessages();
