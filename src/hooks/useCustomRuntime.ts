@@ -305,12 +305,13 @@ export function useCustomRuntime(
                 const data = (threadListAdapter as any).getThread?.(otherThreads[0].id);
                 if (data) {
                   core.applyExternalMessages(data.messages);
-                  if (data.state) {
-                    core.loadExternalState(data.state);
-                    if (data.state.__parentIds) {
+                  const state = data.state as Record<string, unknown> | undefined;
+                  if (state) {
+                    core.loadExternalState(state);
+                    if (state.__parentIds) {
                       const loadedParents = (core as any).assistantHistoryParents as Map<string, string | null>;
                       loadedParents.clear();
-                      for (const [msgId, parentId] of Object.entries(data.state.__parentIds as Record<string, string | null>)) {
+                      for (const [msgId, parentId] of Object.entries(state.__parentIds as Record<string, string | null>)) {
                         loadedParents.set(msgId, parentId);
                       }
                     }
@@ -331,7 +332,7 @@ export function useCustomRuntime(
         ? async () => {
             cancelLockRef.current = false;
             const parents = (core as any).assistantHistoryParents as Map<string, string | null>;
-            onBeforeSwitch?.(core.getMessages(), { ...core.getState(), __parentIds: Object.fromEntries(parents) });
+            onBeforeSwitch?.(core.getMessages(), { ...(core.getState() as Record<string, unknown>), __parentIds: Object.fromEntries(parents) });
             toolInvocationsRef.current.reset();
             const newId = await onSwitchToNewThread();
             if (newId) (options.agent as any).threadId = newId;
@@ -342,17 +343,18 @@ export function useCustomRuntime(
         ? async (targetId: string) => {
             cancelLockRef.current = false;
             const parents = (core as any).assistantHistoryParents as Map<string, string | null>;
-            onBeforeSwitch?.(core.getMessages(), { ...core.getState(), __parentIds: Object.fromEntries(parents) });
+            onBeforeSwitch?.(core.getMessages(), { ...(core.getState() as Record<string, unknown>), __parentIds: Object.fromEntries(parents) });
             toolInvocationsRef.current.reset();
             (options.agent as any).threadId = targetId;
             const result = await onSwitchToThread(targetId);
             core.applyExternalMessages(result.messages);
-            if (result.state) {
-              core.loadExternalState(result.state);
+            const state = result.state as Record<string, unknown> | undefined;
+            if (state) {
+              core.loadExternalState(state);
               const loadedParents = (core as any).assistantHistoryParents as Map<string, string | null>;
-              if (result.state.__parentIds) {
+              if (state.__parentIds) {
                 loadedParents.clear();
-                for (const [msgId, parentId] of Object.entries(result.state.__parentIds as Record<string, string | null>)) {
+                for (const [msgId, parentId] of Object.entries(state.__parentIds as Record<string, string | null>)) {
                   loadedParents.set(msgId, parentId);
                 }
               }
