@@ -411,10 +411,11 @@ export function useCustomRuntime(
 
       const parentIdsMap = (core as any).assistantHistoryParents as Map<string, string | null>;
       const repo = ExportedMessageRepository.fromBranchableArray(
-        messages.map(m => ({
+        messages.map((m, i) => ({
           message: m,
-          parentId: parentIdsMap.get(m.id) ?? null,
+          parentId: parentIdsMap.get(m.id) ?? (i > 0 ? messages[i - 1].id : null),
         })),
+        { headId: messages.at(-1)?.id },
       );
 
       return {
