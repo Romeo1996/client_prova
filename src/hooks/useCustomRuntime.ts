@@ -70,6 +70,26 @@ type UseCustomRuntimeOptions = {
   };
 };
 
+function applySkipHeuristic(messages: readonly ThreadMessage[]): ThreadMessage[] {
+  let hasLaterUser = false;
+  const result: ThreadMessage[] = [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === "user") {
+      hasLaterUser = true;
+      result.unshift(m);
+    } else if (m.role === "assistant" && hasLaterUser && m.status?.type === "running") {
+      result.unshift({
+        ...m,
+        status: { type: "incomplete" as const, reason: "cancelled" as const },
+      });
+    } else {
+      result.unshift(m);
+    }
+  }
+  return result;
+}
+
 export function useCustomRuntime(
   options: UseCustomRuntimeOptions,
 ): AgUiAssistantRuntime {
@@ -212,13 +232,14 @@ export function useCustomRuntime(
   const store = useMemo(
     () => {
       void _version;
-      const messages = core.getMessages();
+      const raw = core.getMessages();
+      const messages = applySkipHeuristic(raw);
 
       return {
         isLoading: core.isLoading,
         messages,
         state: core.getState(),
-        isRunning: core.isRunning() || hasExecutingTools,
+        isRunning: messages.some((m) => m.role === "assistant" && m.status?.type === "running"),
         setMessages: (messages: readonly ThreadMessage[]) =>
           core.applyExternalMessages(messages),
         onNew: async (message: AppendMessage) => {
@@ -277,7 +298,7 @@ export function useCustomRuntime(
         adapters: adapterAdapters,
       };
     },
-    [adapterAdapters, core, _version, hasExecutingTools],
+    [adapterAdapters, core, _version],
   );
 
   const baseRuntime = useExternalStoreRuntime(store as ExternalStoreAdapter<ThreadMessage>);
