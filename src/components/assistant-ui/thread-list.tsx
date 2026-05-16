@@ -35,7 +35,7 @@ export const ThreadList: FC = () => {
 
 const ThreadListNew: FC = () => {
   return (
-    <ThreadListPrimitive.New render={<Button variant="outline" className="aui-thread-list-new h-9 justify-start gap-2 rounded-lg px-3 text-sm hover:bg-muted data-active:bg-muted" />}><PlusIcon className="size-4" />New Thread
+    <ThreadListPrimitive.New render={<Button variant="outline" className="aui-thread-list-new h-9 justify-start gap-2 rounded-lg px-3 text-sm shadow-sm transition-all duration-150 hover:border-primary/30 hover:bg-muted hover:shadow-md data-active:bg-muted" />}><PlusIcon className="size-4" />New Thread
             </ThreadListPrimitive.New>
   );
 };
@@ -59,7 +59,7 @@ const ThreadListSkeleton: FC = () => {
 
 const ThreadListItem: FC = () => {
   return (
-    <ThreadListItemPrimitive.Root className="aui-thread-list-item group flex h-9 items-center gap-2 rounded-lg transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none data-active:bg-muted">
+    <ThreadListItemPrimitive.Root className="aui-thread-list-item group flex h-9 items-center gap-2 rounded-lg transition-all duration-150 hover:bg-accent/50 hover:translate-x-0.5 focus-visible:bg-muted focus-visible:outline-none data-active:bg-muted">
       <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex h-full min-w-0 flex-1 items-center px-3 text-start text-sm">
         <span className="aui-thread-list-item-title min-w-0 flex-1 truncate">
           <ThreadListItemPrimitive.Title fallback="New Chat" />
@@ -73,7 +73,7 @@ const ThreadListItem: FC = () => {
 const ThreadListItemMore: FC = () => {
   return (
     <ThreadListItemMorePrimitive.Root>
-      <ThreadListItemMorePrimitive.Trigger render={<Button variant="ghost" size="icon" className="aui-thread-list-item-more me-2 size-7 p-0 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100 group-data-active:opacity-100" />}><MoreHorizontalIcon className="size-4" /><span className="sr-only">More options</span></ThreadListItemMorePrimitive.Trigger>
+      <ThreadListItemMorePrimitive.Trigger render={<Button variant="ghost" size="icon" className="aui-thread-list-item-more me-2 size-7 p-0 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:scale-110 data-[state=open]:bg-accent data-[state=open]:opacity-100 group-data-active:opacity-100" />}><MoreHorizontalIcon className="size-4" /><span className="sr-only">More options</span></ThreadListItemMorePrimitive.Trigger>
       <ThreadListItemMorePrimitive.Content
         side="bottom"
         align="start"

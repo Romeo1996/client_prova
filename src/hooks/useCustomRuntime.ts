@@ -13,7 +13,6 @@ import type {
   AttachmentAdapter,
   DictationAdapter,
   ExternalStoreAdapter,
-  ExternalStoreThreadListAdapter,
   FeedbackAdapter,
   SpeechSynthesisAdapter,
   ThreadHistoryAdapter,
@@ -34,22 +33,24 @@ export type AgUiAssistantRuntime = AssistantRuntime & {
   ) => Promise<void>;
 };
 
-export type CustomThreadListAdapter = Omit<ExternalStoreThreadListAdapter, 'onSwitchToThread' | 'onSwitchToNewThread'> & {
-  onSwitchToNewThread?: (() => Promise<void> | void) | undefined;
-  onSwitchToThread?:
-    | ((threadId: string) =>
-        | Promise<{
-            messages: readonly ThreadMessage[];
-            state?: ReadonlyJSONValue;
-          }>
-        | { messages: readonly ThreadMessage[]; state?: ReadonlyJSONValue })
-    | undefined;
-  onBeforeSwitch?:
-    | ((
-        messages: readonly ThreadMessage[],
-        state?: ReadonlyJSONValue,
-      ) => void)
-    | undefined;
+export type ThreadListAdapter = {
+  threadId: string | undefined;
+  threads: { id: string; title?: string; status?: "regular" | "archived"; updatedAt?: Date }[];
+  isLoading?: boolean;
+  archivedThreads?: { id: string; title?: string; status?: "regular" | "archived"; updatedAt?: Date }[];
+  onSwitchToNewThread?: () => Promise<void>;
+  onSwitchToThread?: (threadId: string) => Promise<{
+    messages: readonly ThreadMessage[];
+    state?: ReadonlyJSONValue;
+  }>;
+  onDelete?: (threadId: string) => Promise<void>;
+  onRename?: (threadId: string, newTitle: string) => Promise<void>;
+  onArchive?: (threadId: string) => Promise<void>;
+  onUnarchive?: (threadId: string) => Promise<void>;
+  onBeforeSwitch?: (
+    messages: readonly ThreadMessage[],
+    state?: ReadonlyJSONValue,
+  ) => void;
 };
 
 type UseCustomRuntimeOptions = {
@@ -64,7 +65,7 @@ type UseCustomRuntimeOptions = {
     dictation?: DictationAdapter;
     feedback?: FeedbackAdapter;
     history?: ThreadHistoryAdapter;
-    threadList?: CustomThreadListAdapter;
+    threadList?: ThreadListAdapter;
   };
 };
 
@@ -183,7 +184,7 @@ export function useCustomRuntime(
             }
           }
         : undefined,
-    } satisfies ExternalStoreThreadListAdapter;
+    };
   }, [threadListAdapter, core]);
 
   const adapters = options.adapters;
@@ -232,6 +233,8 @@ export function useCustomRuntime(
         messages: core.getMessages(),
         state: core.getState(),
         isRunning: core.isRunning() || hasExecutingTools,
+        setMessages: (messages: readonly ThreadMessage[]) =>
+          core.applyExternalMessages(messages),
         onNew: async (message: AppendMessage) => {
           cancelledMessageIdRef.current = null;
           await core.append(message);
@@ -246,25 +249,12 @@ export function useCustomRuntime(
           await core.cancel();
           setToolStatuses({});
           await toolInvocationsRef.current.abort();
-          // Wait for agent's spurious RUN_ERROR/RUN_FINISHED cleanup (microtasks)
-          await new Promise((resolve) => setTimeout(resolve, 0));
-          // Force the last assistant message status back to incomplete
-          const msgs = core.getMessages();
-          const last = msgs.at(-1);
-          if (last?.role === "assistant") {
-            cancelledMessageIdRef.current = last.id;
-            core.applyExternalMessages(
-              msgs.map((m) =>
-                m.id === last.id
-                  ? { ...m, status: { type: "incomplete" as const, reason: "cancelled" as const } }
-                  : m,
-              ),
-            );
-          }
+          cancelledMessageIdRef.current =
+            core.getMessages().findLast((m) => m.role === "assistant")?.id ?? null;
         },
-        onAddToolResult: (options) => core.addToolResult(options),
-        onResume: (config) => core.resume(config),
-        onResumeToolCall: (options) =>
+        onAddToolResult: (options: Parameters<typeof core.addToolResult>[0]) => core.addToolResult(options),
+        onResume: (config: Parameters<typeof core.resume>[0]) => core.resume(config),
+        onResumeToolCall: (options: { toolCallId: string; payload: unknown }) =>
           toolInvocationsRef.current.resume(
             options.toolCallId,
             options.payload,
@@ -274,12 +264,12 @@ export function useCustomRuntime(
         onLoadExternalState: (state: ReadonlyJSONValue) =>
           core.loadExternalState(state),
         adapters: adapterAdapters,
-      } satisfies ExternalStoreAdapter<ThreadMessage>;
+      };
     },
     [adapterAdapters, core, _version, hasExecutingTools],
   );
 
-  const baseRuntime = useExternalStoreRuntime(store);
+  const baseRuntime = useExternalStoreRuntime(store as ExternalStoreAdapter<ThreadMessage>);
 
   const runtime = useMemo<AgUiAssistantRuntime>(() => {
     const wrapper = Object.create(baseRuntime) as AgUiAssistantRuntime;
