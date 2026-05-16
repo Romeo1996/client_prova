@@ -18,7 +18,6 @@ import type {
   ThreadHistoryAdapter,
   ThreadMessage,
 } from "@assistant-ui/core";
-import { ExportedMessageRepository } from "@assistant-ui/core";
 import type { ReadonlyJSONValue } from "assistant-stream/utils";
 import { makeLogger } from "@assistant-ui/react-ag-ui/runtime/logger";
 import type { HttpAgent } from "@ag-ui/client";
@@ -136,22 +135,18 @@ export function useCustomRuntime(
           return;
         }
       }
-      // Restore assistantHistoryParents from STATE_SNAPSHOT
-      if (event.type === "STATE_SNAPSHOT" && event.state?.__parentIds) {
-        const parents = coreAny.assistantHistoryParents as Map<string, string | null>;
-        parents.clear();
-        for (const [msgId, parentId] of Object.entries(event.state.__parentIds as Record<string, string | null>)) {
-          parents.set(msgId, parentId);
-        }
-      }
       return origHandleEvent(aggregator, event);
     };
 
-    // Monkey-patch buildRunInput to inject __parentIds into state
+    // Monkey-patch buildRunInput to preserve fork metadata in state
     const origBuildInput = coreAny.buildRunInput.bind(coreAny);
     coreAny.buildRunInput = (runId: string, config: any, messages: any, resume?: any) => {
-      const parents = coreAny.assistantHistoryParents as Map<string, string | null>;
-      const state = { ...config.state, __parentIds: Object.fromEntries(parents) };
+      const snapshot = coreAny.stateSnapshot as Record<string, unknown> | undefined;
+      const forkParentId = config.state?.__forkParentId ?? snapshot?.__forkParentId;
+      const forkParentMsgId = config.state?.__forkParentMessageId ?? snapshot?.__forkParentMessageId;
+      const state = { ...config.state };
+      if (forkParentId) state.__forkParentId = forkParentId;
+      if (forkParentMsgId) state.__forkParentMessageId = forkParentMsgId;
       return origBuildInput(runId, { ...config, state }, messages, resume);
     };
 
@@ -306,16 +301,7 @@ export function useCustomRuntime(
                 if (data) {
                   core.applyExternalMessages(data.messages);
                   const state = data.state as Record<string, unknown> | undefined;
-                  if (state) {
-                    core.loadExternalState(state as any);
-                    if (state.__parentIds) {
-                      const loadedParents = (core as any).assistantHistoryParents as Map<string, string | null>;
-                      loadedParents.clear();
-                      for (const [msgId, parentId] of Object.entries(state.__parentIds as Record<string, string | null>)) {
-                        loadedParents.set(msgId, parentId);
-                      }
-                    }
-                  }
+                  if (state) core.loadExternalState(state as any);
                 }
               } else {
                 const newId = crypto.randomUUID();
@@ -331,8 +317,7 @@ export function useCustomRuntime(
       onSwitchToNewThread: onSwitchToNewThread
         ? async () => {
             cancelLockRef.current = false;
-            const parents = (core as any).assistantHistoryParents as Map<string, string | null>;
-            onBeforeSwitch?.(core.getMessages(), { ...(core.getState() as Record<string, unknown>), __parentIds: Object.fromEntries(parents) });
+            onBeforeSwitch?.(core.getMessages(), core.getState());
             toolInvocationsRef.current.reset();
             const newId = await onSwitchToNewThread();
             if (newId) (options.agent as any).threadId = newId;
@@ -342,23 +327,13 @@ export function useCustomRuntime(
       onSwitchToThread: onSwitchToThread
         ? async (targetId: string) => {
             cancelLockRef.current = false;
-            const parents = (core as any).assistantHistoryParents as Map<string, string | null>;
-            onBeforeSwitch?.(core.getMessages(), { ...(core.getState() as Record<string, unknown>), __parentIds: Object.fromEntries(parents) });
+            onBeforeSwitch?.(core.getMessages(), core.getState());
             toolInvocationsRef.current.reset();
             (options.agent as any).threadId = targetId;
             const result = await onSwitchToThread(targetId);
             core.applyExternalMessages(result.messages);
             const state = result.state as Record<string, unknown> | undefined;
-            if (state) {
-              core.loadExternalState(state as any);
-              const loadedParents = (core as any).assistantHistoryParents as Map<string, string | null>;
-              if (state.__parentIds) {
-                loadedParents.clear();
-                for (const [msgId, parentId] of Object.entries(state.__parentIds as Record<string, string | null>)) {
-                  loadedParents.set(msgId, parentId);
-                }
-              }
-            }
+            if (state) core.loadExternalState(state as any);
           }
         : undefined,
     };
@@ -409,18 +384,9 @@ export function useCustomRuntime(
 
       const computedIsRunning = cancelLockRef.current ? false : messages.some((m) => m.role === "assistant" && m.status?.type === "running");
 
-      const parentIdsMap = (core as any).assistantHistoryParents as Map<string, string | null>;
-      const repo = ExportedMessageRepository.fromBranchableArray(
-        messages.map((m, i) => ({
-          message: m,
-          parentId: parentIdsMap.get(m.id) ?? (i > 0 ? messages[i - 1].id : null),
-        })),
-        { headId: messages.at(-1)?.id },
-      );
-
       return {
         isLoading: core.isLoading,
-        messageRepository: repo,
+        messages,
         state: core.getState(),
         isRunning: computedIsRunning,
         setMessages: (incoming: readonly ThreadMessage[]) => {
@@ -469,8 +435,38 @@ export function useCustomRuntime(
         onEdit: async (message: AppendMessage) => {
           await core.edit(message);
         },
-        onReload: (parentId: string | null, config: { runConfig?: any }) =>
-          core.reload(parentId, config),
+        onReload: async (parentId: string | null, config: { runConfig?: any }) => {
+          const adapter = threadListAdapter;
+          if (adapter?.onSwitchToNewThread) {
+            const currentMessages = core.getMessages();
+            adapter.onBeforeSwitch?.(currentMessages, core.getState());
+
+            const parentIdx = parentId
+              ? currentMessages.findIndex(m => m.id === parentId)
+              : currentMessages.findLastIndex(m => m.role === "user");
+            const truncated = parentIdx >= 0 ? currentMessages.slice(0, parentIdx + 1) : [];
+
+            const newThreadId = await adapter.onSwitchToNewThread();
+            if (newThreadId) {
+              (options.agent as any).threadId = newThreadId;
+              core.applyExternalMessages(truncated);
+
+              const forkState: Record<string, unknown> = {
+                __forkParentId: adapter.threadId,
+                __forkParentMessageId: parentId ?? truncated.at(-1)?.id ?? null,
+              };
+
+              return core.reload(parentId, {
+                ...config,
+                runConfig: {
+                  ...config.runConfig,
+                  state: { ...config.runConfig?.state, ...forkState },
+                },
+              });
+            }
+          }
+          return core.reload(parentId, config);
+        },
         onCancel: async () => {
           cancelLockRef.current = true;
           await core.cancel();

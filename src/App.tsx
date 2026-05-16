@@ -10,6 +10,7 @@ import { AGENT_URL } from "./services/api";
 import { cn } from "./lib/utils";
 import { useCustomRuntime } from "./hooks/useCustomRuntime";
 import { useThreadManager } from "./hooks/useThreadManager";
+import { ThreadBranchContext, computeBranchInfo } from "./hooks/useThreadBranchInfo";
 
 const agent = new HttpAgent({ url: AGENT_URL });
 
@@ -26,7 +27,7 @@ function SidebarTriggerWrapper() {
 }
 
 export default function App() {
-  const { activeThreadId, getThreads, saveThread, createThread, setActiveThreadId, getThread, deleteThread } = useThreadManager();
+  const { activeThreadId, getThreads, saveThread, createThread, setActiveThreadId, getThread, deleteThread, getAllThreadData } = useThreadManager();
 
   const threadListAdapter = useMemo(
     () => ({
@@ -55,11 +56,17 @@ export default function App() {
     [activeThreadId, getThreads, saveThread, createThread, setActiveThreadId, getThread, deleteThread],
   );
 
+  const branchContextValue = useMemo(
+    () => computeBranchInfo(getAllThreadData(), activeThreadId),
+    [getAllThreadData, activeThreadId],
+  );
+
   const runtime = useCustomRuntime({ agent, adapters: { threadList: threadListAdapter } });
 
   return (
     <TooltipProvider>
       <AssistantRuntimeProvider runtime={runtime}>
+        <ThreadBranchContext.Provider value={branchContextValue}>
         <SidebarProvider>
           <div className="flex h-dvh w-full">
             <Sidebar>
@@ -76,6 +83,7 @@ export default function App() {
             </SidebarInset>
           </div>
         </SidebarProvider>
+        </ThreadBranchContext.Provider>
       </AssistantRuntimeProvider>
     </TooltipProvider>
   );

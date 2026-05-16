@@ -135,6 +135,10 @@ export function useThreadManager() {
     });
   }, []);
 
+  const getAllThreadData = useCallback((): ThreadData[] => {
+    return Array.from(state.threads.values());
+  }, [state.threads]);
+
   return {
     activeThreadId: state.activeThreadId,
     setActiveThreadId,
@@ -143,6 +147,7 @@ export function useThreadManager() {
     saveThread,
     getThread,
     getThreads,
+    getAllThreadData,
     updateTitle,
     getThreadCount: state.threads.size,
     isEmpty: state.threads.size === 0,

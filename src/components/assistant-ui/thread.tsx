@@ -24,7 +24,6 @@ import {
   ActionBarMorePrimitive,
   ActionBarPrimitive,
   AuiIf,
-  BranchPickerPrimitive,
   ComposerPrimitive,
   ErrorPrimitive,
   getMcpAppFromToolPart,
@@ -32,6 +31,7 @@ import {
   SuggestionPrimitive,
   ThreadPrimitive,
   useAuiState,
+  useAssistantRuntime,
 } from "@assistant-ui/react";
 import {
   ArrowDownIcon,
@@ -47,6 +47,7 @@ import {
   SquareIcon,
 } from "lucide-react";
 import type { FC } from "react";
+import { useThreadBranchInfo } from "../../hooks/useThreadBranchInfo";
 
 export const Thread: FC = () => {
   return (
@@ -384,24 +385,43 @@ const EditComposer: FC = () => {
   );
 };
 
-const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
+const BranchPicker: FC<{ className?: string } & Record<string, unknown>> = ({
   className,
   ...rest
 }) => {
+  const messageId = useAuiState((s) => s.message.id);
+  const { messageToSiblings, currentThreadId } = useThreadBranchInfo();
+  const runtime = useAssistantRuntime();
+
+  const siblings = messageId ? messageToSiblings[messageId] : undefined;
+  if (!siblings || siblings.length < 2) return null;
+
+  const currentIdx = siblings.findIndex((s) => s.threadId === currentThreadId);
+  if (currentIdx === -1) return null;
+
+  const goPrevious = () => {
+    const prev = siblings[(currentIdx - 1 + siblings.length) % siblings.length];
+    runtime.threads?.switchToThread(prev.threadId);
+  };
+
+  const goNext = () => {
+    const next = siblings[(currentIdx + 1) % siblings.length];
+    runtime.threads?.switchToThread(next.threadId);
+  };
+
   return (
-    <BranchPickerPrimitive.Root
-      hideWhenSingleBranch
+    <div
       className={cn(
         "aui-branch-picker-root -ms-2 me-2 inline-flex items-center text-muted-foreground text-xs",
         className,
       )}
       {...rest}
     >
-      <BranchPickerPrimitive.Previous render={<TooltipIconButton tooltip="Previous" />}><ChevronLeftIcon /></BranchPickerPrimitive.Previous>
-      <span className="aui-branch-picker-state font-medium">
-        <BranchPickerPrimitive.Number /> / <BranchPickerPrimitive.Count />
+      <TooltipIconButton tooltip="Previous" onClick={goPrevious}><ChevronLeftIcon className="size-4" /></TooltipIconButton>
+      <span className="aui-branch-picker-state font-medium px-1">
+        {currentIdx + 1} / {siblings.length}
       </span>
-      <BranchPickerPrimitive.Next render={<TooltipIconButton tooltip="Next" />}><ChevronRightIcon /></BranchPickerPrimitive.Next>
-    </BranchPickerPrimitive.Root>
+      <TooltipIconButton tooltip="Next" onClick={goNext}><ChevronRightIcon className="size-4" /></TooltipIconButton>
+    </div>
   );
 };
