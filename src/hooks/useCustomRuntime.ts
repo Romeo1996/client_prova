@@ -149,10 +149,14 @@ export function useCustomRuntime(
     coreAny.handleEvent = (aggregator: any, event: any) => {
       diagMsg("HANDLE_EVENT event=", event.type, "msg=", event.message, "aggregatorStatus=", aggregator.status?.type, "reason=", aggregator.status?.reason);
 
-      // Convert the known pipeline false-error to RUN_FINISHED
-      if (event.type === "RUN_ERROR" && typeof event.message === "string" && event.message.includes("Cannot send event type")) {
-        diagMsg("HANDLE_EVENT CONVERT pipeline error to RUN_FINISHED (original msg truncated)");
-        return origHandleEvent(aggregator, { type: "RUN_FINISHED" });
+      // Convert pipeline errors to RUN_FINISHED (these are validation/ordering errors in the event stream, not real failures)
+      if (event.type === "RUN_ERROR" && typeof event.message === "string") {
+        const isPipelineError = event.message.includes("Cannot send event type") || event.message.includes("First event must");
+        diagMsg("HANDLE_EVENT RUN_ERROR msg=", event.message, "pipelineError=", isPipelineError);
+        if (isPipelineError) {
+          diagMsg("HANDLE_EVENT CONVERT pipeline error to RUN_FINISHED");
+          return origHandleEvent(aggregator, { type: "RUN_FINISHED" });
+        }
       }
 
       // Guard against terminal-state transitions (RUN_FINISHED / RUN_ERROR / RUN_CANCELLED after already terminal)
@@ -167,6 +171,24 @@ export function useCustomRuntime(
     };
     diagMsg("handleEvent patched");
 
+    // Monkey-patch startRun to catch the REAL pipeline error message
+    const origStartRun = coreAny.startRun.bind(coreAny);
+    coreAny.startRun = async (...args: any[]) => {
+      diagMsg("startRun ENTER parentId=", args[0], "pendingError BEFORE=", coreAny.pendingError?.message ?? "none");
+      const errBefore = coreAny.pendingError;
+      try {
+        const result = await origStartRun(...args);
+        diagMsg("startRun RESOLVED pendingError AFTER=", coreAny.pendingError?.message ?? "none");
+        return result;
+      } catch (err) {
+        const msg = err instanceof Error ? `${err.message} | ${err.stack?.substring(0, 300) || ""}` : String(err);
+        diagMsg("startRun REJECTED err=", msg, "pendingError AFTER=", coreAny.pendingError?.message ?? "none");
+        diagMsg("startRun REJECTED diff:", coreAny.pendingError === errBefore ? "SAME error object (was set before)" : "DIFFERENT error object (new)");
+        throw err;
+      }
+    };
+    diagMsg("startRun patched");
+
     // Monkey-patch fetch to log HTTP requests to the agent server
     const origFetch = window.fetch.bind(window);
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -178,26 +200,25 @@ export function useCustomRuntime(
         const response = await origFetch(input, init);
         if (url.includes("/api/agent/chat")) {
           diagMsg("FETCH RESPONSE status=", response.status, "statusText=", response.statusText, "ok=", response.ok, "contentType=", response.headers.get("content-type"));
-          // Clone and read first 3000 chars of body to see what server sends
-          try {
-            const cloned = response.clone();
-            const reader = cloned.body?.getReader();
-            if (reader) {
-              const { value, done } = await reader.read();
-              if (done) {
-                diagMsg("FETCH BODY (empty/complete immediately)");
-              } else {
-                const decoder = new TextDecoder();
-                const chunk = decoder.decode(value, { stream: true });
-                diagMsg("FETCH BODY first chunk (", chunk.length, "chars):", chunk.substring(0, 3000));
+          // Clone the response to read chunks for diagnostics
+          const clonedResp = response.clone();
+          if (response.ok && response.body) {
+            const reader = clonedResp.body.getReader();
+            const decoder2 = new TextDecoder();
+            let chunkIndex = 0;
+            (async () => {
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  const text = decoder2.decode(value, { stream: true });
+                  diagMsg(`FETCH CHUNK[${++chunkIndex}] length=${value.length} text="${text.substring(0, 200)}"`);
+                }
+                diagMsg(`FETCH STREAM COMPLETE totalChunks=${chunkIndex}`);
+              } catch (e: any) {
+                diagMsg(`FETCH STREAM ERROR`, e?.message ?? String(e));
               }
-              reader.releaseLock();
-            } else {
-              const text = await cloned.text();
-              diagMsg("FETCH BODY text (", text.length, "chars):", text.substring(0, 3000));
-            }
-          } catch (bodyErr) {
-            diagMsg("FETCH BODY read error:", bodyErr);
+            })();
           }
         }
         return response;
@@ -381,7 +402,7 @@ export function useCustomRuntime(
               try {
                 await core.append(message);
               } catch (e) {
-                diagMsg("onNew append error (suppressed):", e);
+                diagMsg("onNew append error (suppressed):", e instanceof Error ? `${e.message} | ${e.stack?.substring(0, 300)}` : String(e));
               }
               return;
             }
@@ -414,7 +435,7 @@ export function useCustomRuntime(
           try {
             await core.append(message);
           } catch (e) {
-            diagMsg("onNew append error (suppressed):", e);
+            diagMsg("onNew append error (suppressed):", e instanceof Error ? `${e.message} | ${e.stack?.substring(0, 300)}` : String(e));
           }
           diagMsg("onNew EXIT");
         },
