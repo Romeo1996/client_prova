@@ -189,10 +189,18 @@ const SkippedIndicator: FC = () => {
   );
 };
 
+let amCounter = 0;
 const AssistantMessage: FC = () => {
   const status = useAuiState((s) => s.message.status);
+  const msgId = useAuiState((s) => s.message.id);
+  const role = useAuiState((s) => s.message.role);
+  const partsLen = useAuiState((s) => s.message.parts.length);
+  const cid = ++amCounter;
+
+  console.log(`[AM${cid}] RENDER status=`, status, 'id=', msgId, 'role=', role, 'parts=', partsLen);
 
   if (status?.type === "incomplete") {
+    console.log(`[AM${cid}] *** SHOWING SKIPPED (incomplete) *** reason=`, (status as any).reason);
     return (
       <MessagePrimitive.Root
         data-slot="aui_assistant-message-root"

@@ -70,6 +70,12 @@ type UseCustomRuntimeOptions = {
   };
 };
 
+let diagMsgCounter = 0;
+function diagMsg(...args: unknown[]) {
+  const tag = `[D${++diagMsgCounter}]`;
+  console.log(tag, ...args);
+}
+
 function applySkipHeuristic(messages: readonly ThreadMessage[]): ThreadMessage[] {
   let hasLaterUser = false;
   const result: ThreadMessage[] = [];
@@ -79,6 +85,7 @@ function applySkipHeuristic(messages: readonly ThreadMessage[]): ThreadMessage[]
       hasLaterUser = true;
       result.unshift(m);
     } else if (m.role === "assistant" && hasLaterUser && m.status?.type === "running") {
+      diagMsg("HEURISTIC MATCH idx=", i, "msgId=", m.id, "status=", m.status);
       result.unshift({
         ...m,
         content: [],
@@ -96,7 +103,12 @@ export function useCustomRuntime(
 ): AgUiAssistantRuntime {
   const logger = useMemo(() => makeLogger(options.logger), [options.logger]);
   const [_version, setVersion] = useState(0);
-  const notifyUpdate = useCallback(() => setVersion((v) => v + 1), []);
+  const notifyUpdate = useCallback(() => {
+    setVersion((v) => {
+      diagMsg("notifyUpdate version", v + 1);
+      return v + 1;
+    });
+  }, []);
   const coreRef = useRef<AgUiThreadRuntimeCore | null>(null);
   const runtimeAdapters = useRuntimeAdapters();
 
@@ -104,6 +116,7 @@ export function useCustomRuntime(
   const threadListAdapter = options.adapters?.threadList;
 
   if (!coreRef.current) {
+    diagMsg("CREATING core");
     coreRef.current = new AgUiThreadRuntimeCore({
       agent: options.agent,
       logger,
@@ -113,7 +126,27 @@ export function useCustomRuntime(
       ...(historyAdapter && { history: historyAdapter }),
       notifyUpdate,
     });
+    // monkey-patch updateAssistantMessage for diagnostics
+    const coreAny = coreRef.current as any;
+    const origUpdate = coreAny.updateAssistantMessage.bind(coreAny);
+    coreAny.updateAssistantMessage = (messageId: string, update: any) => {
+      const result = origUpdate(messageId, update);
+      if (update?.status) {
+        diagMsg("CORE updateAssistantMessage msgId=", messageId, "status=", JSON.stringify(update.status), "contentLen=", update.content?.length ?? "same");
+        const msgs = coreAny.getMessages().map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          status: m.status,
+          contentLen: m.content.length,
+        }));
+        diagMsg("CORE messages after update:", JSON.stringify(msgs));
+      }
+      return result;
+    };
   }
+
+  diagMsg("isRunningFlag at hook start:", coreRef.current.isRunning());
+  diagMsg("core messages at hook start:", coreRef.current.getMessages().length);
 
   const core = coreRef.current;
   core.updateOptions({
@@ -140,6 +173,8 @@ export function useCustomRuntime(
   }));
 
   const cancelLockRef = useRef(false);
+
+  diagMsg("cancelLockRef initial:", cancelLockRef.current);
 
   const toolInvocationsRef = useRef({
     reset: () => {},
@@ -240,32 +275,58 @@ export function useCustomRuntime(
       const raw = core.getMessages();
       const messages = applySkipHeuristic(raw);
 
+      const computedIsRunning = cancelLockRef.current ? false : messages.some((m) => m.role === "assistant" && m.status?.type === "running");
+
+      diagMsg("STORE COMPUTE version=", _version,
+        "rawMsgs=", raw.length,
+        "msgs=", messages.length,
+        "hasRunning=", messages.some(m => m.role === "assistant" && m.status?.type === "running"),
+        "computedIsRunning=", computedIsRunning,
+        "cancelLock=", cancelLockRef.current,
+        "statuses=", messages.filter(m => m.role === "assistant").map(m => ({ id: m.id, status: m.status?.type, reason: (m.status as any)?.reason })));
+
       return {
         isLoading: core.isLoading,
         messages,
         state: core.getState(),
-        isRunning: cancelLockRef.current ? false : messages.some((m) => m.role === "assistant" && m.status?.type === "running"),
+        isRunning: computedIsRunning,
         setMessages: (incoming: readonly ThreadMessage[]) => {
-          if (cancelLockRef.current) return;
+          diagMsg("setMessages called with", incoming.length, "msgs, cancelLock=", cancelLockRef.current);
+          if (cancelLockRef.current) {
+            diagMsg("setMessages BLOCKED by cancelLock");
+            return;
+          }
           core.applyExternalMessages(incoming);
         },
         onNew: async (message: AppendMessage) => {
+          diagMsg("onNew ENTER parentId=", message.parentId, "role=", message.role);
+          diagMsg("onNew core.isRunning() =", core.isRunning(), "isRunningFlag =", (core as any).isRunningFlag);
+          const preMsgs = core.getMessages();
+          diagMsg("onNew messages before:", preMsgs.length, "lastRole=", preMsgs.at(-1)?.role, "runningCount=", preMsgs.filter(m => m.role === "assistant" && m.status?.type === "running").length);
           if (core.isRunning()) {
             const preCancelMsgs = core.getMessages();
             const hasRunning = preCancelMsgs.some(
               (m) => m.role === "assistant" && m.status?.type === "running",
             );
+            diagMsg("onNew cancel check: hasRunning=", hasRunning, "msgs=", preCancelMsgs.length);
             if (!hasRunning) {
+              diagMsg("onNew SKIP cancel (no running msgs), going straight to append");
               cancelLockRef.current = false;
               await core.append(message);
               return;
             }
+            diagMsg("onNew ENTERING CANCEL PATH");
             cancelLockRef.current = true;
             await core.cancel();
+            diagMsg("onNew after core.cancel()");
             (options.agent as HttpAgent).abortRun();
+            diagMsg("onNew after agent.abortRun()");
             const msgs = core.getMessages();
+            diagMsg("onNew messages after cancel:", msgs.length, "statuses=", msgs.filter(m => m.role === "assistant").map(m => ({ id: m.id, status: m.status?.type })));
             const idx = msgs.findLastIndex((m) => m.role === "assistant");
+            diagMsg("onNew last assistant idx=", idx);
             if (idx !== -1) {
+              diagMsg("onNew marking last assistant as incomplete");
               core.applyExternalMessages(
                 msgs.map((m, i) =>
                   i === idx
@@ -276,9 +337,12 @@ export function useCustomRuntime(
             }
             toolInvocationsRef.current.reset();
             setToolStatuses({});
+            diagMsg("onNew cancel path complete");
           }
           cancelLockRef.current = false;
+          diagMsg("onNow appending message");
           await core.append(message);
+          diagMsg("onNew EXIT");
         },
         onEdit: async (message: AppendMessage) => {
           await core.edit(message);
@@ -286,12 +350,17 @@ export function useCustomRuntime(
         onReload: (parentId: string | null, config: { runConfig?: any }) =>
           core.reload(parentId, config),
         onCancel: async () => {
+          diagMsg("onCancel ENTER");
           cancelLockRef.current = true;
           await core.cancel();
+          diagMsg("onCancel after core.cancel()");
           (options.agent as HttpAgent).abortRun();
+          diagMsg("onCancel after agent.abortRun()");
           const msgs = core.getMessages();
+          diagMsg("onCancel msgs:", msgs.length, "statuses=", msgs.filter(m => m.role === "assistant").map(m => ({ id: m.id, status: m.status?.type })));
           const idx = msgs.findLastIndex((m) => m.role === "assistant");
           if (idx !== -1) {
+            diagMsg("onCancel marking assistant idx=", idx, "as incomplete");
             core.applyExternalMessages(
               msgs.map((m, i) =>
                 i === idx
@@ -302,6 +371,7 @@ export function useCustomRuntime(
           }
           toolInvocationsRef.current.reset();
           setToolStatuses({});
+          diagMsg("onCancel EXIT");
         },
         onAddToolResult: (options: Parameters<typeof core.addToolResult>[0]) => core.addToolResult(options),
         onResume: (config: Parameters<typeof core.resume>[0]) => core.resume(config),
