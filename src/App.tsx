@@ -37,7 +37,7 @@ export default function App() {
         if (activeThreadId) saveThread(activeThreadId, { messages, state });
       },
       onSwitchToNewThread: async () => {
-        createThread();
+        return createThread();
       },
       onSwitchToThread: async (id: string) => {
         setActiveThreadId(id);

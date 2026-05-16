@@ -39,7 +39,7 @@ export type ThreadListAdapter = {
   threads: { id: string; title?: string; status?: "regular" | "archived"; updatedAt?: Date }[];
   isLoading?: boolean;
   archivedThreads?: { id: string; title?: string; status?: "regular" | "archived"; updatedAt?: Date }[];
-  onSwitchToNewThread?: () => Promise<void>;
+  onSwitchToNewThread?: () => Promise<string | void>;
   onSwitchToThread?: (threadId: string) => Promise<{
     messages: readonly ThreadMessage[];
     state?: ReadonlyJSONValue;
@@ -284,12 +284,15 @@ export function useCustomRuntime(
             await onDelete(id);
             if (wasActive) {
               if (otherThreads.length > 0) {
+                (options.agent as any).threadId = otherThreads[0].id;
                 const data = (threadListAdapter as any).getThread?.(otherThreads[0].id);
                 if (data) {
                   core.applyExternalMessages(data.messages);
                   if (data.state) core.loadExternalState(data.state);
                 }
               } else {
+                const newId = crypto.randomUUID();
+                (options.agent as any).threadId = newId;
                 core.applyExternalMessages([]);
               }
             }
@@ -303,7 +306,8 @@ export function useCustomRuntime(
             cancelLockRef.current = false;
             onBeforeSwitch?.(core.getMessages(), core.getState());
             toolInvocationsRef.current.reset();
-            await onSwitchToNewThread();
+            const newId = await onSwitchToNewThread();
+            if (newId) (options.agent as any).threadId = newId;
             core.applyExternalMessages([]);
           }
         : undefined,
@@ -312,6 +316,7 @@ export function useCustomRuntime(
             cancelLockRef.current = false;
             onBeforeSwitch?.(core.getMessages(), core.getState());
             toolInvocationsRef.current.reset();
+            (options.agent as any).threadId = targetId;
             const result = await onSwitchToThread(targetId);
             core.applyExternalMessages(result.messages);
             if (result.state) {
