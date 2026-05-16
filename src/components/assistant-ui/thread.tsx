@@ -47,7 +47,7 @@ import {
   SquareIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { useThreadBranchInfo } from "../../hooks/useThreadBranchInfo";
+import { useThreadBranchInfo, type BranchSibling } from "../../hooks/useThreadBranchInfo";
 
 export const Thread: FC = () => {
   return (
@@ -396,7 +396,7 @@ const BranchPicker: FC<{ className?: string } & Record<string, unknown>> = ({
   const siblings = messageId ? messageToSiblings[messageId] : undefined;
   if (!siblings || siblings.length < 2) return null;
 
-  const currentIdx = siblings.findIndex((s) => s.threadId === currentThreadId);
+  const currentIdx = siblings.findIndex((s: BranchSibling) => s.threadId === currentThreadId);
   if (currentIdx === -1) return null;
 
   const goPrevious = () => {
