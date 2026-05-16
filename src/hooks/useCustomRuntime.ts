@@ -106,20 +106,6 @@ export function useCustomRuntime(
   const [toolStatuses, setToolStatuses] = useState<
     Record<string, ToolExecutionStatus>
   >({});
-  const cancelledMessageIdRef = useRef<string | null>(null);
-
-  const originalGetMessages = core.getMessages.bind(core);
-  core.getMessages = () => {
-    const msgs = originalGetMessages();
-    if (cancelledMessageIdRef.current) {
-      return msgs.map((m) =>
-        m.id === cancelledMessageIdRef.current
-          ? { ...m, status: { type: "incomplete" as const, reason: "cancelled" as const } }
-          : m,
-      );
-    }
-    return msgs;
-  };
 
   const hasExecutingTools = Object.values(toolStatuses).some(
     (s) => s?.type === "executing",
@@ -165,7 +151,6 @@ export function useCustomRuntime(
       onUnarchive,
       onSwitchToNewThread: onSwitchToNewThread
         ? async () => {
-            cancelledMessageIdRef.current = null;
             onBeforeSwitch?.(core.getMessages(), core.getState());
             toolInvocationsRef.current.reset();
             await onSwitchToNewThread();
@@ -174,7 +159,6 @@ export function useCustomRuntime(
         : undefined,
       onSwitchToThread: onSwitchToThread
         ? async (targetId: string) => {
-            cancelledMessageIdRef.current = null;
             onBeforeSwitch?.(core.getMessages(), core.getState());
             toolInvocationsRef.current.reset();
             const result = await onSwitchToThread(targetId);
@@ -236,11 +220,9 @@ export function useCustomRuntime(
         setMessages: (messages: readonly ThreadMessage[]) =>
           core.applyExternalMessages(messages),
         onNew: async (message: AppendMessage) => {
-          cancelledMessageIdRef.current = null;
           await core.append(message);
         },
         onEdit: async (message: AppendMessage) => {
-          cancelledMessageIdRef.current = null;
           await core.edit(message);
         },
         onReload: (parentId: string | null, config: { runConfig?: any }) =>
@@ -249,9 +231,17 @@ export function useCustomRuntime(
           await core.cancel();
           setToolStatuses({});
           await toolInvocationsRef.current.abort();
-          cancelledMessageIdRef.current =
-            core.getMessages().findLast((m) => m.role === "assistant")?.id ?? null;
-          notifyUpdate();
+          const msgs = core.getMessages();
+          const idx = msgs.findLastIndex((m) => m.role === "assistant");
+          if (idx !== -1) {
+            core.applyExternalMessages(
+              msgs.map((m, i) =>
+                i === idx
+                  ? { ...m, status: { type: "incomplete" as const, reason: "cancelled" as const } }
+                  : m,
+              ),
+            );
+          }
         },
         onAddToolResult: (options: Parameters<typeof core.addToolResult>[0]) => core.addToolResult(options),
         onResume: (config: Parameters<typeof core.resume>[0]) => core.resume(config),
