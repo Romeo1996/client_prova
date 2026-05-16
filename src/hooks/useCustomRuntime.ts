@@ -34,7 +34,7 @@ export type AgUiAssistantRuntime = AssistantRuntime & {
   ) => Promise<void>;
 };
 
-export type CustomThreadListAdapter = ExternalStoreThreadListAdapter & {
+export type CustomThreadListAdapter = Omit<ExternalStoreThreadListAdapter, 'onSwitchToThread' | 'onSwitchToNewThread'> & {
   onSwitchToNewThread?: (() => Promise<void> | void) | undefined;
   onSwitchToThread?:
     | ((threadId: string) =>
@@ -220,10 +220,10 @@ export function useCustomRuntime(
         onEdit: (message: AppendMessage) => core.edit(message),
         onReload: (parentId: string | null, config: { runConfig?: any }) =>
           core.reload(parentId, config),
-        onCancel: () => {
-          core.cancel();
+        onCancel: async () => {
+          await core.cancel();
           setToolStatuses({});
-          toolInvocationsRef.current.abort();
+          await toolInvocationsRef.current.abort();
         },
         onAddToolResult: (options) => core.addToolResult(options),
         onResume: (config) => core.resume(config),

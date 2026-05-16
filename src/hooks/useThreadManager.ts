@@ -12,7 +12,7 @@ export type ThreadData = {
 
 type ThreadManagerState = {
   threads: Map<string, ThreadData>;
-  activeThreadId: string | null;
+  activeThreadId: string | undefined;
 };
 
 const extractTitle = (messages: ThreadMessage[]): string | null => {
@@ -78,7 +78,7 @@ export function useThreadManager() {
         }
       }
 
-      return { threads: next, activeThreadId: newActiveId ?? null };
+      return { threads: next, activeThreadId: newActiveId };
     });
   }, []);
 
@@ -120,7 +120,7 @@ export function useThreadManager() {
     }));
   }, [state.threads]);
 
-  const setActiveThreadId = useCallback((id: string | null) => {
+  const setActiveThreadId = useCallback((id: string | undefined) => {
     setState((prev) => ({ ...prev, activeThreadId: id }));
   }, []);
 
