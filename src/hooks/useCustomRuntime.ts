@@ -26,6 +26,7 @@ import type {
   AgUiResumeEntry,
 } from "@assistant-ui/react-ag-ui/runtime/types";
 import { AgUiThreadRuntimeCore } from "@assistant-ui/react-ag-ui/runtime/AgUiThreadRuntimeCore";
+import { RunAggregator } from "@assistant-ui/react-ag-ui/runtime/adapter/run-aggregator";
 
 export type AgUiAssistantRuntime = AssistantRuntime & {
   unstable_getPendingInterrupts: () => readonly AgUiInterrupt[];
@@ -143,6 +144,20 @@ export function useCustomRuntime(
       }
       return result;
     };
+
+    // Monkey-patch RunAggregator.prototype.handle to skip terminal-state transitions
+    const origHandle = (RunAggregator as any).prototype.handle;
+    (RunAggregator as any).prototype.handle = function (this: any, event: any) {
+      const terminalStates = ["incomplete", "complete"];
+      if (this.status && terminalStates.includes(this.status.type)) {
+        if (event.type === "RUN_FINISHED" || event.type === "RUN_ERROR" || event.type === "RUN_CANCELLED") {
+          diagMsg("AGG_GUARD SKIP event=", event.type, "currStatus=", this.status.type, "reason=", this.status.reason, "msg=", event.message);
+          return;
+        }
+      }
+      return origHandle.call(this, event);
+    };
+    diagMsg("RunAggregator.prototype.handle patched");
   }
 
   diagMsg("isRunningFlag at hook start:", coreRef.current.isRunning());
