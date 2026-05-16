@@ -105,6 +105,20 @@ export function useCustomRuntime(
   const [toolStatuses, setToolStatuses] = useState<
     Record<string, ToolExecutionStatus>
   >({});
+  const cancelledMessageIdRef = useRef<string | null>(null);
+
+  const originalGetMessages = core.getMessages.bind(core);
+  core.getMessages = () => {
+    const msgs = originalGetMessages();
+    if (cancelledMessageIdRef.current) {
+      return msgs.map((m) =>
+        m.id === cancelledMessageIdRef.current
+          ? { ...m, status: { type: "incomplete" as const, reason: "cancelled" as const } }
+          : m,
+      );
+    }
+    return msgs;
+  };
 
   const hasExecutingTools = Object.values(toolStatuses).some(
     (s) => s?.type === "executing",
@@ -150,6 +164,7 @@ export function useCustomRuntime(
       onUnarchive,
       onSwitchToNewThread: onSwitchToNewThread
         ? async () => {
+            cancelledMessageIdRef.current = null;
             onBeforeSwitch?.(core.getMessages(), core.getState());
             toolInvocationsRef.current.reset();
             await onSwitchToNewThread();
@@ -158,6 +173,7 @@ export function useCustomRuntime(
         : undefined,
       onSwitchToThread: onSwitchToThread
         ? async (targetId: string) => {
+            cancelledMessageIdRef.current = null;
             onBeforeSwitch?.(core.getMessages(), core.getState());
             toolInvocationsRef.current.reset();
             const result = await onSwitchToThread(targetId);
@@ -216,8 +232,14 @@ export function useCustomRuntime(
         messages: core.getMessages(),
         state: core.getState(),
         isRunning: core.isRunning() || hasExecutingTools,
-        onNew: (message: AppendMessage) => core.append(message),
-        onEdit: (message: AppendMessage) => core.edit(message),
+        onNew: async (message: AppendMessage) => {
+          cancelledMessageIdRef.current = null;
+          await core.append(message);
+        },
+        onEdit: async (message: AppendMessage) => {
+          cancelledMessageIdRef.current = null;
+          await core.edit(message);
+        },
         onReload: (parentId: string | null, config: { runConfig?: any }) =>
           core.reload(parentId, config),
         onCancel: async () => {
@@ -230,6 +252,7 @@ export function useCustomRuntime(
           const msgs = core.getMessages();
           const last = msgs.at(-1);
           if (last?.role === "assistant") {
+            cancelledMessageIdRef.current = last.id;
             core.applyExternalMessages(
               msgs.map((m) =>
                 m.id === last.id
