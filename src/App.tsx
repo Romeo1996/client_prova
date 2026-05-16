@@ -54,7 +54,7 @@ export default function App() {
               </SidebarFooter>
             </Sidebar>
             <SidebarInset>
-              <SidebarTrigger className="fixed top-4 right-4 z-30 h-9 w-9" />
+              <SidebarTrigger className="fixed top-4 left-[calc(var(--sidebar-width)+8px)] z-30 h-9 w-9" />
               <Thread />
             </SidebarInset>
           </div>
