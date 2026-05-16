@@ -189,7 +189,7 @@ export function useCustomRuntime(
     };
     diagMsg("startRun patched");
 
-    // Monkey-patch fetch to log HTTP requests to the agent server
+    // Monkey-patch fetch to wrap SSE response body and suppress AbortError
     const origFetch = window.fetch.bind(window);
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -200,26 +200,41 @@ export function useCustomRuntime(
         const response = await origFetch(input, init);
         if (url.includes("/api/agent/chat")) {
           diagMsg("FETCH RESPONSE status=", response.status, "statusText=", response.statusText, "ok=", response.ok, "contentType=", response.headers.get("content-type"));
-          // Clone the response to read chunks for diagnostics
-          const clonedResp = response.clone();
-          if (response.ok && response.body) {
-            const reader = clonedResp.body.getReader();
-            const decoder2 = new TextDecoder();
-            let chunkIndex = 0;
-            (async () => {
+        }
+        // Wrap the response body to suppress AbortError from premature stream closure
+        if (url.includes("/api/agent/chat") && response.ok && response.body) {
+          const reader = response.body.getReader();
+          let chunkCount = 0;
+          const newStream = new ReadableStream({
+            async start(controller) {
               try {
                 while (true) {
                   const { done, value } = await reader.read();
                   if (done) break;
-                  const text = decoder2.decode(value, { stream: true });
-                  diagMsg(`FETCH CHUNK[${++chunkIndex}] length=${value.length} text="${text.substring(0, 200)}"`);
+                  chunkCount++;
+                  diagMsg(`FETCH CHUNK[${chunkCount}] length=${value.length} text="${new TextDecoder().decode(value, { stream: true }).substring(0, 200)}"`);
+                  controller.enqueue(value);
                 }
-                diagMsg(`FETCH STREAM COMPLETE totalChunks=${chunkIndex}`);
+                diagMsg(`FETCH STREAM COMPLETE totalChunks=${chunkCount}`);
               } catch (e: any) {
-                diagMsg(`FETCH STREAM ERROR`, e?.message ?? String(e));
+                if (e?.name === "AbortError") {
+                  diagMsg(`FETCH ABORT (suppressed) after ${chunkCount} chunks`);
+                } else {
+                  diagMsg(`FETCH READ ERROR:`, e?.message ?? String(e));
+                }
+              } finally {
+                try { controller.close(); } catch {}
               }
-            })();
-          }
+            },
+            cancel() {
+              reader.cancel().catch(() => {});
+            },
+          });
+          return new Response(newStream, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: new Headers(response.headers),
+          });
         }
         return response;
       } catch (err) {
