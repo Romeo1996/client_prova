@@ -139,6 +139,8 @@ export function useCustomRuntime(
     },
   }));
 
+  const cancelLockRef = useRef(false);
+
   const toolInvocationsRef = useRef({
     reset: () => {},
     abort: (): Promise<void> => Promise.resolve(),
@@ -173,6 +175,7 @@ export function useCustomRuntime(
       onUnarchive,
       onSwitchToNewThread: onSwitchToNewThread
         ? async () => {
+            cancelLockRef.current = false;
             onBeforeSwitch?.(core.getMessages(), core.getState());
             toolInvocationsRef.current.reset();
             await onSwitchToNewThread();
@@ -181,6 +184,7 @@ export function useCustomRuntime(
         : undefined,
       onSwitchToThread: onSwitchToThread
         ? async (targetId: string) => {
+            cancelLockRef.current = false;
             onBeforeSwitch?.(core.getMessages(), core.getState());
             toolInvocationsRef.current.reset();
             const result = await onSwitchToThread(targetId);
@@ -240,11 +244,12 @@ export function useCustomRuntime(
         isLoading: core.isLoading,
         messages,
         state: core.getState(),
-        isRunning: messages.some((m) => m.role === "assistant" && m.status?.type === "running"),
+        isRunning: cancelLockRef.current ? false : messages.some((m) => m.role === "assistant" && m.status?.type === "running"),
         setMessages: (messages: readonly ThreadMessage[]) =>
           core.applyExternalMessages(messages),
         onNew: async (message: AppendMessage) => {
           if (core.isRunning()) {
+            cancelLockRef.current = true;
             await core.cancel();
             (options.agent as HttpAgent).abortRun();
             const msgs = core.getMessages();
@@ -258,6 +263,7 @@ export function useCustomRuntime(
             toolInvocationsRef.current.reset();
             setToolStatuses({});
           }
+          cancelLockRef.current = false;
           await core.append(message);
         },
         onEdit: async (message: AppendMessage) => {
@@ -266,6 +272,7 @@ export function useCustomRuntime(
         onReload: (parentId: string | null, config: { runConfig?: any }) =>
           core.reload(parentId, config),
         onCancel: async () => {
+          cancelLockRef.current = true;
           await core.cancel();
           (options.agent as HttpAgent).abortRun();
           const msgs = core.getMessages();
