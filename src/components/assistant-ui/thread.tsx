@@ -177,6 +177,28 @@ const MessageError: FC = () => {
 };
 
 const AssistantMessage: FC = () => {
+  const status = useAuiState((s) => s.message.status);
+  const isIncomplete = status?.type === "incomplete";
+
+  if (isIncomplete) {
+    return (
+      <MessagePrimitive.Root
+        data-slot="aui_assistant-message-root"
+        data-role="assistant"
+        className="fade-in slide-in-from-bottom-1 relative animate-in duration-150"
+      >
+        <div className="mx-2 my-2 flex items-center gap-2 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-4 py-2.5 text-muted-foreground text-sm">
+          <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10" />
+            <line x1="12" y1="20" x2="12" y2="4" />
+            <line x1="6" y1="20" x2="6" y2="14" />
+          </svg>
+          <span>Answer was skipped</span>
+        </div>
+      </MessagePrimitive.Root>
+    );
+  }
+
   // reserves space for action bar and compensates with `-mb` for consistent msg spacing
   // keeps hovered action bar from shifting layout (autohide doesn't support absolute positioning well)
   // for pt-[n] use -mb-[n + 6] & min-h-[n + 6] to preserve compensation

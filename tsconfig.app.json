@@ -22,7 +22,9 @@
     "noFallthroughCasesInSwitch": true,
     "paths": {
       "@/*": ["./src/*"],
-      "src/*": ["./src/*"]
+      "src/*": ["./src/*"],
+      "@assistant-ui/react-ag-ui/runtime": ["./node_modules/@assistant-ui/react-ag-ui/dist/runtime"],
+      "@assistant-ui/react-ag-ui/runtime/*": ["./node_modules/@assistant-ui/react-ag-ui/dist/runtime/*"]
     }
   },
   "include": ["src"]

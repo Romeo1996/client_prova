@@ -220,9 +220,10 @@ export function useCustomRuntime(
         onEdit: (message: AppendMessage) => core.edit(message),
         onReload: (parentId: string | null, config: { runConfig?: any }) =>
           core.reload(parentId, config),
-        onCancel: async () => {
+        onCancel: () => {
           core.cancel();
-          await toolInvocationsRef.current.abort();
+          setToolStatuses({});
+          toolInvocationsRef.current.abort();
         },
         onAddToolResult: (options) => core.addToolResult(options),
         onResume: (config) => core.resume(config),
