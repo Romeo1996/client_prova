@@ -62,7 +62,7 @@ const ThreadListSkeleton: FC = () => {
 const ThreadListItem: FC = () => {
   const { isMobile, setOpenMobile } = useSidebar();
   return (
-    <ThreadListItemPrimitive.Root className="aui-thread-list-item group flex h-9 cursor-pointer items-center gap-2 rounded-lg transition-all duration-150 hover:bg-sidebar-accent focus-visible:bg-sidebar-accent focus-visible:outline-none data-active:bg-muted">
+    <ThreadListItemPrimitive.Root className="aui-thread-list-item group flex h-9 cursor-pointer items-center gap-2 rounded-lg transition-all duration-150 hover:bg-sidebar-accent/60 focus-visible:bg-sidebar-accent/60 focus-visible:outline-none data-active:bg-sidebar-accent">
       <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex h-full min-w-0 flex-1 items-center px-3 text-start text-sm" onClick={() => { if (isMobile) setOpenMobile(false); }}>
         <span className="aui-thread-list-item-title min-w-0 flex-1 truncate">
           <ThreadListItemPrimitive.Title fallback="New Chat" />
