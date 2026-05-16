@@ -222,17 +222,6 @@ export function useCustomRuntime(
         onNew: async (message: AppendMessage) => {
           if (core.isRunning()) {
             await core.cancel();
-            const msgs = core.getMessages();
-            const idx = msgs.findLastIndex((m) => m.role === "assistant");
-            if (idx !== -1) {
-              core.applyExternalMessages(
-                msgs.map((m, i) =>
-                  i === idx
-                    ? { ...m, status: { type: "incomplete" as const, reason: "cancelled" as const } }
-                    : m,
-                ),
-              );
-            }
           }
           await core.append(message);
         },
