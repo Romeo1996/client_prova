@@ -245,10 +245,21 @@ export function useCustomRuntime(
         messages,
         state: core.getState(),
         isRunning: cancelLockRef.current ? false : messages.some((m) => m.role === "assistant" && m.status?.type === "running"),
-        setMessages: (messages: readonly ThreadMessage[]) =>
-          core.applyExternalMessages(messages),
+        setMessages: (incoming: readonly ThreadMessage[]) => {
+          if (cancelLockRef.current) return;
+          core.applyExternalMessages(incoming);
+        },
         onNew: async (message: AppendMessage) => {
           if (core.isRunning()) {
+            const preCancelMsgs = core.getMessages();
+            const hasRunning = preCancelMsgs.some(
+              (m) => m.role === "assistant" && m.status?.type === "running",
+            );
+            if (!hasRunning) {
+              cancelLockRef.current = false;
+              await core.append(message);
+              return;
+            }
             cancelLockRef.current = true;
             await core.cancel();
             (options.agent as HttpAgent).abortRun();
