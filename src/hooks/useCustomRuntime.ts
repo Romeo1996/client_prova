@@ -144,9 +144,18 @@ export function useCustomRuntime(
       return result;
     };
 
-    // Monkey-patch handleEvent to skip terminal-state transitions (guards against RUN_FINISHED after RUN_ERROR)
+    // Monkey-patch handleEvent: log events, guard terminal transitions, convert known pipeline errors
     const origHandleEvent = coreAny.handleEvent.bind(coreAny);
     coreAny.handleEvent = (aggregator: any, event: any) => {
+      diagMsg("HANDLE_EVENT event=", event.type, "msg=", event.message, "aggregatorStatus=", aggregator.status?.type, "reason=", aggregator.status?.reason);
+
+      // Convert the known pipeline false-error to RUN_FINISHED
+      if (event.type === "RUN_ERROR" && typeof event.message === "string" && event.message.includes("Cannot send event type")) {
+        diagMsg("HANDLE_EVENT CONVERT pipeline error to RUN_FINISHED (original msg truncated)");
+        return origHandleEvent(aggregator, { type: "RUN_FINISHED" });
+      }
+
+      // Guard against terminal-state transitions (RUN_FINISHED / RUN_ERROR / RUN_CANCELLED after already terminal)
       const terminalStates = ["incomplete", "complete"];
       if (aggregator.status && terminalStates.includes(aggregator.status.type)) {
         if (event.type === "RUN_FINISHED" || event.type === "RUN_ERROR" || event.type === "RUN_CANCELLED") {
