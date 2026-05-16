@@ -76,13 +76,13 @@ const ThreadListItem: FC = () => {
 const ThreadListItemMore: FC = () => {
   return (
     <ThreadListItemMorePrimitive.Root>
-      <ThreadListItemMorePrimitive.Trigger render={<Button variant="ghost" size="icon" className="aui-thread-list-item-more me-2 size-7 p-0 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:scale-110 data-[state=open]:bg-accent data-[state=open]:opacity-100 group-data-active:opacity-100" />}><MoreHorizontalIcon className="size-4" /><span className="sr-only">More options</span></ThreadListItemMorePrimitive.Trigger>
+      <ThreadListItemMorePrimitive.Trigger render={<Button variant="ghost" size="icon" className="aui-thread-list-item-more me-2 size-7 p-0 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:scale-110 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground data-[state=open]:opacity-100 group-data-active:opacity-100" />}><MoreHorizontalIcon className="size-4" /><span className="sr-only">More options</span></ThreadListItemMorePrimitive.Trigger>
       <ThreadListItemMorePrimitive.Content
         side="bottom"
         align="start"
         className="aui-thread-list-item-more-content z-50 min-w-32 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
       >
-        <ThreadListItemPrimitive.Delete render={<ThreadListItemMorePrimitive.Item className="aui-thread-list-item-more-item flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-destructive text-sm outline-none hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive" />}><TrashIcon className="size-4" />Delete
+        <ThreadListItemPrimitive.Delete render={<ThreadListItemMorePrimitive.Item className="aui-thread-list-item-more-item flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-muted-foreground text-sm outline-none hover:bg-sidebar-accent hover:text-sidebar-foreground focus:bg-sidebar-accent focus:text-sidebar-foreground" />}><TrashIcon className="size-4" />Delete
                         </ThreadListItemPrimitive.Delete>
       </ThreadListItemMorePrimitive.Content>
     </ThreadListItemMorePrimitive.Root>

@@ -44,6 +44,10 @@ export default function App() {
         const t = getThread(id);
         return { messages: t?.messages ?? [], state: t?.state };
       },
+      getThread: (id: string) => {
+        const t = getThread(id);
+        return t ? { messages: t.messages, state: t.state } : undefined;
+      },
       onDelete: async (id: string) => {
         deleteThread(id);
       },

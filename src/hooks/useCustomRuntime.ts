@@ -70,12 +70,6 @@ type UseCustomRuntimeOptions = {
   };
 };
 
-let diagMsgCounter = 0;
-function diagMsg(...args: unknown[]) {
-  const tag = `[D${++diagMsgCounter}]`;
-  console.log(tag, ...args);
-}
-
 function applySkipHeuristic(messages: readonly ThreadMessage[]): ThreadMessage[] {
   let hasLaterUser = false;
   const result: ThreadMessage[] = [];
@@ -85,7 +79,6 @@ function applySkipHeuristic(messages: readonly ThreadMessage[]): ThreadMessage[]
       hasLaterUser = true;
       result.unshift(m);
     } else if (m.role === "assistant" && hasLaterUser && m.status?.type === "running") {
-      diagMsg("HEURISTIC MATCH idx=", i, "msgId=", m.id, "status=", m.status);
       result.unshift({
         ...m,
         content: [],
@@ -104,10 +97,7 @@ export function useCustomRuntime(
   const logger = useMemo(() => makeLogger(options.logger), [options.logger]);
   const [_version, setVersion] = useState(0);
   const notifyUpdate = useCallback(() => {
-    setVersion((v) => {
-      diagMsg("notifyUpdate version", v + 1);
-      return v + 1;
-    });
+    setVersion((v) => v + 1);
   }, []);
   const coreRef = useRef<AgUiThreadRuntimeCore | null>(null);
   const runtimeAdapters = useRuntimeAdapters();
@@ -116,7 +106,6 @@ export function useCustomRuntime(
   const threadListAdapter = options.adapters?.threadList;
 
   if (!coreRef.current) {
-    diagMsg("CREATING core");
     coreRef.current = new AgUiThreadRuntimeCore({
       agent: options.agent,
       logger,
@@ -126,88 +115,41 @@ export function useCustomRuntime(
       ...(historyAdapter && { history: historyAdapter }),
       notifyUpdate,
     });
-    // monkey-patch updateAssistantMessage for diagnostics
-    const coreAny = coreRef.current as any;
-    const origUpdate = coreAny.updateAssistantMessage.bind(coreAny);
-    coreAny.updateAssistantMessage = (messageId: string, update: any) => {
-      const result = origUpdate(messageId, update);
-      if (update?.status) {
-        diagMsg("CORE updateAssistantMessage msgId=", messageId, "status=", JSON.stringify(update.status), "contentLen=", update.content?.length ?? "same");
-        const msgs = coreAny.getMessages().map((m: any) => ({
-          id: m.id,
-          role: m.role,
-          status: m.status,
-          contentLen: m.content.length,
-        }));
-        diagMsg("CORE messages after update:", JSON.stringify(msgs));
-      }
-      return result;
-    };
 
-    // Monkey-patch handleEvent: log events, guard terminal transitions, convert known pipeline errors
+    const coreAny = coreRef.current as any;
+
+    // Monkey-patch handleEvent: guard terminal transitions, convert pipeline errors
     const origHandleEvent = coreAny.handleEvent.bind(coreAny);
     coreAny.handleEvent = (aggregator: any, event: any) => {
-      diagMsg("HANDLE_EVENT event=", event.type, "msg=", event.message, "aggregatorStatus=", aggregator.status?.type, "reason=", aggregator.status?.reason);
-
-      // Convert pipeline errors to RUN_FINISHED (these are validation/ordering errors in the event stream, not real failures)
+      // Convert pipeline validation/ordering errors to RUN_FINISHED
       if (event.type === "RUN_ERROR" && typeof event.message === "string") {
         const isPipelineError = event.message.includes("Cannot send event type") || event.message.includes("First event must");
-        diagMsg("HANDLE_EVENT RUN_ERROR msg=", event.message, "pipelineError=", isPipelineError);
         if (isPipelineError) {
-          diagMsg("HANDLE_EVENT CONVERT pipeline error to RUN_FINISHED");
           return origHandleEvent(aggregator, { type: "RUN_FINISHED" });
         }
       }
-
-      // Guard against terminal-state transitions (RUN_FINISHED / RUN_ERROR / RUN_CANCELLED after already terminal)
+      // Guard against terminal-state transitions after user cancel or completion
       const terminalStates = ["incomplete", "complete"];
       if (aggregator.status && terminalStates.includes(aggregator.status.type)) {
         if (event.type === "RUN_FINISHED" || event.type === "RUN_ERROR" || event.type === "RUN_CANCELLED") {
-          diagMsg("HANDLE_EVENT GUARD SKIP event=", event.type, "currStatus=", aggregator.status.type, "reason=", aggregator.status.reason, "msg=", event.message);
           return;
         }
       }
       return origHandleEvent(aggregator, event);
     };
-    diagMsg("handleEvent patched");
 
-    // Monkey-patch startRun to catch the REAL pipeline error message
-    const origStartRun = coreAny.startRun.bind(coreAny);
-    coreAny.startRun = async (...args: any[]) => {
-      diagMsg("startRun ENTER parentId=", args[0], "pendingError BEFORE=", coreAny.pendingError?.message ?? "none");
-      const errBefore = coreAny.pendingError;
-      try {
-        const result = await origStartRun(...args);
-        diagMsg("startRun RESOLVED pendingError AFTER=", coreAny.pendingError?.message ?? "none");
-        return result;
-      } catch (err) {
-        const msg = err instanceof Error ? `${err.message} | ${err.stack?.substring(0, 300) || ""}` : String(err);
-        diagMsg("startRun REJECTED err=", msg, "pendingError AFTER=", coreAny.pendingError?.message ?? "none");
-        diagMsg("startRun REJECTED diff:", coreAny.pendingError === errBefore ? "SAME error object (was set before)" : "DIFFERENT error object (new)");
-        throw err;
-      }
-    };
-    diagMsg("startRun patched");
-
-    // Monkey-patch fetch to wrap SSE response body
-    // 1) Suppress AbortError from premature stream closure
-    // 2) Parse SSE events properly (line-by-line)
-    // 3) Convert RUN_ERROR to text content so the error is visible in the message
-    // 4) Strip RUN_FINISHED after RUN_ERROR to prevent pipeline validation error
+    // Monkey-patch fetch to:
+    //   1) Suppress AbortError from premature stream closure
+    //   2) Parse SSE events line-by-line
+    //   3) Convert RUN_ERROR to text content so errors are visible in the message
+    //   4) Strip RUN_FINISHED after RUN_ERROR to prevent pipeline validation errors
     const origFetch = window.fetch.bind(window);
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.includes("/api/agent/chat")) {
-        diagMsg("FETCH REQUEST url=", url, "method=", init?.method ?? "GET", "body=", init?.body ? String(init.body).substring(0, 500) : "none");
-      }
       try {
         const response = await origFetch(input, init);
-        if (url.includes("/api/agent/chat")) {
-          diagMsg("FETCH RESPONSE status=", response.status, "statusText=", response.statusText, "ok=", response.ok, "contentType=", response.headers.get("content-type"));
-        }
         if (url.includes("/api/agent/chat") && response.ok && response.body) {
           const reader = response.body.getReader();
-          let chunkCount = 0;
           let sawRunError = false;
           let errorMsgIdCount = 0;
           const decoder = new TextDecoder();
@@ -218,14 +160,11 @@ export function useCustomRuntime(
                 while (true) {
                   const { done, value } = await reader.read();
                   if (done) break;
-                  chunkCount++;
                   buffer += decoder.decode(value, { stream: true });
-                  // Process complete SSE events (delimited by \n\n)
                   let eventEnd;
                   while ((eventEnd = buffer.indexOf('\n\n')) !== -1) {
                     const sseBlock = buffer.slice(0, eventEnd);
                     buffer = buffer.slice(eventEnd + 2);
-                    // Extract data: lines from the SSE block
                     const dataLines: string[] = [];
                     for (const line of sseBlock.split('\n')) {
                       if (line.startsWith('data: ')) {
@@ -248,7 +187,7 @@ export function useCustomRuntime(
                           ].map((e) => `data: ${JSON.stringify(e)}\n\n`).join('');
                           controller.enqueue(new TextEncoder().encode(textEvents));
                         } else if (sawRunError && parsed.type === 'RUN_FINISHED') {
-                          diagMsg(`FETCH STRIP RUN_FINISHED after RUN_ERROR`);
+                          // Stripped — onRunFinalized will dispatch a synthetic RUN_FINISHED
                         } else {
                           controller.enqueue(new TextEncoder().encode(`data: ${jsonStr}\n\n`));
                         }
@@ -258,17 +197,11 @@ export function useCustomRuntime(
                     }
                   }
                 }
-                // Flush remaining buffer
                 if (buffer.length > 0) {
                   controller.enqueue(new TextEncoder().encode(buffer));
                 }
-                diagMsg(`FETCH STREAM COMPLETE totalChunks=${chunkCount}`);
-              } catch (e: any) {
-                if (e?.name === "AbortError") {
-                  diagMsg(`FETCH ABORT (suppressed) after ${chunkCount} chunks`);
-                } else {
-                  diagMsg(`FETCH READ ERROR:`, e?.message ?? String(e));
-                }
+              } catch {
+                // AbortError and other stream errors are silently handled
               } finally {
                 try { controller.close(); } catch {}
               }
@@ -285,17 +218,10 @@ export function useCustomRuntime(
         }
         return response;
       } catch (err) {
-        if (url.includes("/api/agent/chat")) {
-          diagMsg("FETCH ERROR", err);
-        }
         throw err;
       }
     };
-    diagMsg("fetch patched");
   }
-
-  diagMsg("isRunningFlag at hook start:", coreRef.current.isRunning());
-  diagMsg("core messages at hook start:", coreRef.current.getMessages().length);
 
   const core = coreRef.current;
   core.updateOptions({
@@ -322,8 +248,6 @@ export function useCustomRuntime(
   }));
 
   const cancelLockRef = useRef(false);
-
-  diagMsg("cancelLockRef initial:", cancelLockRef.current);
 
   const toolInvocationsRef = useRef({
     reset: () => {},
@@ -353,7 +277,24 @@ export function useCustomRuntime(
       isLoading,
       threads,
       archivedThreads,
-      onDelete,
+      onDelete: onDelete
+        ? async (id: string) => {
+            const wasActive = threadId === id;
+            const otherThreads = (threads ?? []).filter(t => t.id !== id);
+            await onDelete(id);
+            if (wasActive) {
+              if (otherThreads.length > 0) {
+                const data = threadListAdapter.getThread?.(otherThreads[0].id);
+                if (data) {
+                  core.applyExternalMessages(data.messages);
+                  if (data.state) core.loadExternalState(data.state);
+                }
+              } else {
+                core.applyExternalMessages([]);
+              }
+            }
+          }
+        : undefined,
       onRename,
       onArchive,
       onUnarchive,
@@ -426,60 +367,36 @@ export function useCustomRuntime(
 
       const computedIsRunning = cancelLockRef.current ? false : messages.some((m) => m.role === "assistant" && m.status?.type === "running");
 
-      diagMsg("STORE COMPUTE version=", _version,
-        "rawMsgs=", raw.length,
-        "msgs=", messages.length,
-        "hasRunning=", messages.some(m => m.role === "assistant" && m.status?.type === "running"),
-        "computedIsRunning=", computedIsRunning,
-        "cancelLock=", cancelLockRef.current,
-        "statuses=", messages.filter(m => m.role === "assistant").map(m => ({ id: m.id, status: m.status?.type, reason: (m.status as any)?.reason })));
-
       return {
         isLoading: core.isLoading,
         messages,
         state: core.getState(),
         isRunning: computedIsRunning,
         setMessages: (incoming: readonly ThreadMessage[]) => {
-          diagMsg("setMessages called with", incoming.length, "msgs, cancelLock=", cancelLockRef.current);
-          if (cancelLockRef.current) {
-            diagMsg("setMessages BLOCKED by cancelLock");
-            return;
-          }
+          if (cancelLockRef.current) return;
           core.applyExternalMessages(incoming);
         },
         onNew: async (message: AppendMessage) => {
-          diagMsg("onNew ENTER parentId=", message.parentId, "role=", message.role);
-          diagMsg("onNew core.isRunning() =", core.isRunning(), "isRunningFlag =", (core as any).isRunningFlag);
-          const preMsgs = core.getMessages();
-          diagMsg("onNew messages before:", preMsgs.length, "lastRole=", preMsgs.at(-1)?.role, "runningCount=", preMsgs.filter(m => m.role === "assistant" && m.status?.type === "running").length);
           if (core.isRunning()) {
             const preCancelMsgs = core.getMessages();
             const hasRunning = preCancelMsgs.some(
               (m) => m.role === "assistant" && m.status?.type === "running",
             );
-            diagMsg("onNew cancel check: hasRunning=", hasRunning, "msgs=", preCancelMsgs.length);
             if (!hasRunning) {
-              diagMsg("onNew SKIP cancel (no running msgs), going straight to append");
               cancelLockRef.current = false;
               try {
                 await core.append(message);
-              } catch (e) {
-                diagMsg("onNew append error (suppressed):", e instanceof Error ? `${e.message} | ${e.stack?.substring(0, 300)}` : String(e));
+              } catch {
+                // suppressed
               }
               return;
             }
-            diagMsg("onNew ENTERING CANCEL PATH");
             cancelLockRef.current = true;
             await core.cancel();
-            diagMsg("onNew after core.cancel()");
             (options.agent as HttpAgent).abortRun();
-            diagMsg("onNew after agent.abortRun()");
             const msgs = core.getMessages();
-            diagMsg("onNew messages after cancel:", msgs.length, "statuses=", msgs.filter(m => m.role === "assistant").map(m => ({ id: m.id, status: m.status?.type })));
             const idx = msgs.findLastIndex((m) => m.role === "assistant");
-            diagMsg("onNew last assistant idx=", idx);
             if (idx !== -1) {
-              diagMsg("onNew marking last assistant as incomplete");
               core.applyExternalMessages(
                 msgs.map((m, i) =>
                   i === idx
@@ -490,16 +407,13 @@ export function useCustomRuntime(
             }
             toolInvocationsRef.current.reset();
             setToolStatuses({});
-            diagMsg("onNew cancel path complete");
           }
           cancelLockRef.current = false;
-          diagMsg("onNow appending message");
           try {
             await core.append(message);
-          } catch (e) {
-            diagMsg("onNew append error (suppressed):", e instanceof Error ? `${e.message} | ${e.stack?.substring(0, 300)}` : String(e));
+          } catch {
+            // suppressed
           }
-          diagMsg("onNew EXIT");
         },
         onEdit: async (message: AppendMessage) => {
           await core.edit(message);
@@ -507,17 +421,12 @@ export function useCustomRuntime(
         onReload: (parentId: string | null, config: { runConfig?: any }) =>
           core.reload(parentId, config),
         onCancel: async () => {
-          diagMsg("onCancel ENTER");
           cancelLockRef.current = true;
           await core.cancel();
-          diagMsg("onCancel after core.cancel()");
           (options.agent as HttpAgent).abortRun();
-          diagMsg("onCancel after agent.abortRun()");
           const msgs = core.getMessages();
-          diagMsg("onCancel msgs:", msgs.length, "statuses=", msgs.filter(m => m.role === "assistant").map(m => ({ id: m.id, status: m.status?.type })));
           const idx = msgs.findLastIndex((m) => m.role === "assistant");
           if (idx !== -1) {
-            diagMsg("onCancel marking assistant idx=", idx, "as incomplete");
             core.applyExternalMessages(
               msgs.map((m, i) =>
                 i === idx
@@ -528,7 +437,6 @@ export function useCustomRuntime(
           }
           toolInvocationsRef.current.reset();
           setToolStatuses({});
-          diagMsg("onCancel EXIT");
         },
         onAddToolResult: (options: Parameters<typeof core.addToolResult>[0]) => core.addToolResult(options),
         onResume: (config: Parameters<typeof core.resume>[0]) => core.resume(config),
