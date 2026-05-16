@@ -284,7 +284,7 @@ export function useCustomRuntime(
             await onDelete(id);
             if (wasActive) {
               if (otherThreads.length > 0) {
-                const data = threadListAdapter.getThread?.(otherThreads[0].id);
+                const data = (threadListAdapter as any).getThread?.(otherThreads[0].id);
                 if (data) {
                   core.applyExternalMessages(data.messages);
                   if (data.state) core.loadExternalState(data.state);
