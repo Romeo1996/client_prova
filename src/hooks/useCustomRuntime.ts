@@ -222,6 +222,19 @@ export function useCustomRuntime(
         onNew: async (message: AppendMessage) => {
           if (core.isRunning()) {
             await core.cancel();
+            const msgs = core.getMessages();
+            const idx = msgs.findLastIndex((m) => m.role === "assistant");
+            if (idx !== -1) {
+              core.applyExternalMessages(
+                msgs.map((m, i) =>
+                  i === idx
+                    ? { ...m, status: { type: "incomplete" as const, reason: "cancelled" as const } }
+                    : m,
+                ),
+              );
+            }
+            toolInvocationsRef.current.reset();
+            setToolStatuses({});
           }
           await core.append(message);
         },
@@ -232,6 +245,19 @@ export function useCustomRuntime(
           core.reload(parentId, config),
         onCancel: async () => {
           await core.cancel();
+          const msgs = core.getMessages();
+          const idx = msgs.findLastIndex((m) => m.role === "assistant");
+          if (idx !== -1) {
+            core.applyExternalMessages(
+              msgs.map((m, i) =>
+                i === idx
+                  ? { ...m, status: { type: "incomplete" as const, reason: "cancelled" as const } }
+                  : m,
+              ),
+            );
+          }
+          toolInvocationsRef.current.reset();
+          setToolStatuses({});
         },
         onAddToolResult: (options: Parameters<typeof core.addToolResult>[0]) => core.addToolResult(options),
         onResume: (config: Parameters<typeof core.resume>[0]) => core.resume(config),

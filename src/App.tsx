@@ -18,7 +18,7 @@ function SidebarTriggerWrapper() {
   return (
     <SidebarTrigger
       className={cn(
-        "fixed top-2 z-30 h-9 w-9 transition-[left] duration-200 ease-linear",
+        "fixed top-1 z-30 h-9 w-9 transition-[left] duration-200 ease-linear",
         open ? "left-[calc(var(--sidebar-width)+8px)]" : "left-4"
       )}
     />
