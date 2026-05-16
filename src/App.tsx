@@ -1,16 +1,44 @@
+import { useMemo } from "react";
 import { AssistantRuntimeProvider } from "@assistant-ui/react";
-import { useAgUiRuntime } from "@assistant-ui/react-ag-ui";
 import { HttpAgent } from "@ag-ui/client";
 import { Thread } from "./components/assistant-ui/thread";
 import { ThreadList } from "./components/assistant-ui/thread-list";
 import { Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger } from "./components/ui/sidebar";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { AGENT_URL } from "./services/api";
+import { useCustomRuntime } from "./hooks/useCustomRuntime";
+import { useThreadManager } from "./hooks/useThreadManager";
 
 const agent = new HttpAgent({ url: AGENT_URL });
 
 export default function App() {
-  const runtime = useAgUiRuntime({ agent });
+  const { activeThreadId, getThreads, saveThread, createThread, setActiveThreadId, getThread, deleteThread } = useThreadManager();
+
+  const threadListAdapter = useMemo(
+    () => ({
+      threadId: activeThreadId,
+      threads: getThreads(),
+      isLoading: false,
+      onBeforeSwitch: (messages: any, state?: any) => {
+        if (activeThreadId) saveThread(activeThreadId, { messages, state });
+      },
+      onSwitchToNewThread: async () => {
+        createThread();
+      },
+      onSwitchToThread: async (id: string) => {
+        setActiveThreadId(id);
+        const t = getThread(id);
+        return { messages: t?.messages ?? [], state: t?.state };
+      },
+      onDelete: async (id: string) => {
+        deleteThread(id);
+      },
+    }),
+    [activeThreadId, getThreads, saveThread, createThread, setActiveThreadId, getThread, deleteThread],
+  );
+
+  const runtime = useCustomRuntime({ agent, adapters: { threadList: threadListAdapter } });
+
   return (
     <TooltipProvider>
       <AssistantRuntimeProvider runtime={runtime}>
