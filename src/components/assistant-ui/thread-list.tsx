@@ -12,12 +12,16 @@ import {
   PlusIcon,
   TrashIcon,
 } from "lucide-react";
+import { Separator } from "src/components/ui/separator";
 import type { FC } from "react";
 
 export const ThreadList: FC = () => {
   return (
     <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col gap-1">
-      <ThreadListNew />
+      <div className="px-1 pt-1 pb-2">
+        <ThreadListNew />
+      </div>
+      <Separator className="mb-1" />
       <AuiIf condition={(s) => s.threads.isLoading}>
         <ThreadListSkeleton />
       </AuiIf>
