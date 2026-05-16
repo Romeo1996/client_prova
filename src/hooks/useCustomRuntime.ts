@@ -166,7 +166,28 @@ export function useCustomRuntime(
       return origHandleEvent(aggregator, event);
     };
     diagMsg("handleEvent patched");
-  }
+
+    // Monkey-patch fetch to log HTTP requests to the agent server
+    const origFetch = window.fetch.bind(window);
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/api/agent/chat")) {
+        diagMsg("FETCH REQUEST url=", url, "method=", init?.method ?? "GET", "body=", init?.body ? String(init.body).substring(0, 500) : "none");
+      }
+      try {
+        const response = await origFetch(input, init);
+        if (url.includes("/api/agent/chat")) {
+          diagMsg("FETCH RESPONSE status=", response.status, "statusText=", response.statusText, "ok=", response.ok);
+        }
+        return response;
+      } catch (err) {
+        if (url.includes("/api/agent/chat")) {
+          diagMsg("FETCH ERROR", err);
+        }
+        throw err;
+      }
+    };
+    diagMsg("fetch patched");
 
   diagMsg("isRunningFlag at hook start:", coreRef.current.isRunning());
   diagMsg("core messages at hook start:", coreRef.current.getMessages().length);
@@ -335,7 +356,11 @@ export function useCustomRuntime(
             if (!hasRunning) {
               diagMsg("onNew SKIP cancel (no running msgs), going straight to append");
               cancelLockRef.current = false;
-              await core.append(message);
+              try {
+                await core.append(message);
+              } catch (e) {
+                diagMsg("onNew append error (suppressed):", e);
+              }
               return;
             }
             diagMsg("onNew ENTERING CANCEL PATH");
@@ -364,7 +389,11 @@ export function useCustomRuntime(
           }
           cancelLockRef.current = false;
           diagMsg("onNow appending message");
-          await core.append(message);
+          try {
+            await core.append(message);
+          } catch (e) {
+            diagMsg("onNew append error (suppressed):", e);
+          }
           diagMsg("onNew EXIT");
         },
         onEdit: async (message: AppendMessage) => {
