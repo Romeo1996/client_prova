@@ -78,7 +78,7 @@ function applySkipHeuristic(messages: readonly ThreadMessage[]): ThreadMessage[]
     if (m.role === "user") {
       hasLaterUser = true;
       result.unshift(m);
-    } else if (m.role === "assistant" && hasLaterUser) {
+    } else if (m.role === "assistant" && hasLaterUser && m.status?.type === "running") {
       result.unshift({
         ...m,
         content: [],
@@ -253,13 +253,16 @@ export function useCustomRuntime(
             await core.cancel();
             (options.agent as HttpAgent).abortRun();
             const msgs = core.getMessages();
-            core.applyExternalMessages(
-              msgs.map((m) =>
-                m.role === "assistant"
-                  ? { ...m, content: [], status: { type: "incomplete" as const, reason: "cancelled" as const } }
-                  : m,
-              ),
-            );
+            const idx = msgs.findLastIndex((m) => m.role === "assistant");
+            if (idx !== -1) {
+              core.applyExternalMessages(
+                msgs.map((m, i) =>
+                  i === idx
+                    ? { ...m, status: { type: "incomplete" as const, reason: "cancelled" as const } }
+                    : m,
+                ),
+              );
+            }
             toolInvocationsRef.current.reset();
             setToolStatuses({});
           }
@@ -276,13 +279,16 @@ export function useCustomRuntime(
           await core.cancel();
           (options.agent as HttpAgent).abortRun();
           const msgs = core.getMessages();
-          core.applyExternalMessages(
-            msgs.map((m) =>
-              m.role === "assistant"
-                ? { ...m, content: [], status: { type: "incomplete" as const, reason: "cancelled" as const } }
-                : m,
-            ),
-          );
+          const idx = msgs.findLastIndex((m) => m.role === "assistant");
+          if (idx !== -1) {
+            core.applyExternalMessages(
+              msgs.map((m, i) =>
+                i === idx
+                  ? { ...m, content: [], status: { type: "incomplete" as const, reason: "cancelled" as const } }
+                  : m,
+              ),
+            );
+          }
           toolInvocationsRef.current.reset();
           setToolStatuses({});
         },
