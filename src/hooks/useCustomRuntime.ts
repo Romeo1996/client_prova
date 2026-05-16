@@ -20,6 +20,7 @@ import type {
 } from "@assistant-ui/core";
 import type { ReadonlyJSONValue } from "assistant-stream/utils";
 import { makeLogger } from "@assistant-ui/react-ag-ui/runtime/logger";
+import type { HttpAgent } from "@ag-ui/client";
 import type {
   AgUiInterrupt,
   AgUiResumeEntry,
@@ -106,7 +107,6 @@ export function useCustomRuntime(
   const [toolStatuses, setToolStatuses] = useState<
     Record<string, ToolExecutionStatus>
   >({});
-  const [blockRunning, setBlockRunning] = useState(false);
 
   const hasExecutingTools = Object.values(toolStatuses).some(
     (s) => s?.type === "executing",
@@ -218,13 +218,13 @@ export function useCustomRuntime(
         isLoading: core.isLoading,
         messages,
         state: core.getState(),
-        isRunning: blockRunning ? false : (hasExecutingTools || messages.some((m) => m.role === "assistant" && m.status?.type === "running")),
+        isRunning: core.isRunning() || hasExecutingTools,
         setMessages: (messages: readonly ThreadMessage[]) =>
           core.applyExternalMessages(messages),
         onNew: async (message: AppendMessage) => {
           if (core.isRunning()) {
-            setBlockRunning(true);
             await core.cancel();
+            (options.agent as HttpAgent).abortRun();
             const msgs = core.getMessages();
             const idx = msgs.findLastIndex((m) => m.role === "assistant");
             if (idx !== -1) {
@@ -239,7 +239,6 @@ export function useCustomRuntime(
             toolInvocationsRef.current.reset();
             setToolStatuses({});
           }
-          setBlockRunning(false);
           await core.append(message);
         },
         onEdit: async (message: AppendMessage) => {
@@ -248,8 +247,8 @@ export function useCustomRuntime(
         onReload: (parentId: string | null, config: { runConfig?: any }) =>
           core.reload(parentId, config),
         onCancel: async () => {
-          setBlockRunning(true);
           await core.cancel();
+          (options.agent as HttpAgent).abortRun();
           const msgs = core.getMessages();
           const idx = msgs.findLastIndex((m) => m.role === "assistant");
           if (idx !== -1) {
@@ -278,7 +277,7 @@ export function useCustomRuntime(
         adapters: adapterAdapters,
       };
     },
-    [adapterAdapters, core, _version, hasExecutingTools, blockRunning],
+    [adapterAdapters, core, _version, hasExecutingTools],
   );
 
   const baseRuntime = useExternalStoreRuntime(store as ExternalStoreAdapter<ThreadMessage>);
