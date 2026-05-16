@@ -188,6 +188,7 @@ export function useCustomRuntime(
       }
     };
     diagMsg("fetch patched");
+  }
 
   diagMsg("isRunningFlag at hook start:", coreRef.current.isRunning());
   diagMsg("core messages at hook start:", coreRef.current.getMessages().length);
