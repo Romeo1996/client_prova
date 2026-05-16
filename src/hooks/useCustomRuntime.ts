@@ -26,7 +26,6 @@ import type {
   AgUiResumeEntry,
 } from "@assistant-ui/react-ag-ui/runtime/types";
 import { AgUiThreadRuntimeCore } from "@assistant-ui/react-ag-ui/runtime/AgUiThreadRuntimeCore";
-import { RunAggregator } from "@assistant-ui/react-ag-ui/runtime/adapter/run-aggregator";
 
 export type AgUiAssistantRuntime = AssistantRuntime & {
   unstable_getPendingInterrupts: () => readonly AgUiInterrupt[];
@@ -145,19 +144,19 @@ export function useCustomRuntime(
       return result;
     };
 
-    // Monkey-patch RunAggregator.prototype.handle to skip terminal-state transitions
-    const origHandle = (RunAggregator as any).prototype.handle;
-    (RunAggregator as any).prototype.handle = function (this: any, event: any) {
+    // Monkey-patch handleEvent to skip terminal-state transitions (guards against RUN_FINISHED after RUN_ERROR)
+    const origHandleEvent = coreAny.handleEvent.bind(coreAny);
+    coreAny.handleEvent = (aggregator: any, event: any) => {
       const terminalStates = ["incomplete", "complete"];
-      if (this.status && terminalStates.includes(this.status.type)) {
+      if (aggregator.status && terminalStates.includes(aggregator.status.type)) {
         if (event.type === "RUN_FINISHED" || event.type === "RUN_ERROR" || event.type === "RUN_CANCELLED") {
-          diagMsg("AGG_GUARD SKIP event=", event.type, "currStatus=", this.status.type, "reason=", this.status.reason, "msg=", event.message);
+          diagMsg("HANDLE_EVENT GUARD SKIP event=", event.type, "currStatus=", aggregator.status.type, "reason=", aggregator.status.reason, "msg=", event.message);
           return;
         }
       }
-      return origHandle.call(this, event);
+      return origHandleEvent(aggregator, event);
     };
-    diagMsg("RunAggregator.prototype.handle patched");
+    diagMsg("handleEvent patched");
   }
 
   diagMsg("isRunningFlag at hook start:", coreRef.current.isRunning());
