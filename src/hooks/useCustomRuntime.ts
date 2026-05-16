@@ -177,7 +177,28 @@ export function useCustomRuntime(
       try {
         const response = await origFetch(input, init);
         if (url.includes("/api/agent/chat")) {
-          diagMsg("FETCH RESPONSE status=", response.status, "statusText=", response.statusText, "ok=", response.ok);
+          diagMsg("FETCH RESPONSE status=", response.status, "statusText=", response.statusText, "ok=", response.ok, "contentType=", response.headers.get("content-type"));
+          // Clone and read first 3000 chars of body to see what server sends
+          try {
+            const cloned = response.clone();
+            const reader = cloned.body?.getReader();
+            if (reader) {
+              const { value, done } = await reader.read();
+              if (done) {
+                diagMsg("FETCH BODY (empty/complete immediately)");
+              } else {
+                const decoder = new TextDecoder();
+                const chunk = decoder.decode(value, { stream: true });
+                diagMsg("FETCH BODY first chunk (", chunk.length, "chars):", chunk.substring(0, 3000));
+              }
+              reader.releaseLock();
+            } else {
+              const text = await cloned.text();
+              diagMsg("FETCH BODY text (", text.length, "chars):", text.substring(0, 3000));
+            }
+          } catch (bodyErr) {
+            diagMsg("FETCH BODY read error:", bodyErr);
+          }
         }
         return response;
       } catch (err) {
