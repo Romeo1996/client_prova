@@ -189,7 +189,11 @@ export function useCustomRuntime(
     };
     diagMsg("startRun patched");
 
-    // Monkey-patch fetch to wrap SSE response body and suppress AbortError
+    // Monkey-patch fetch to wrap SSE response body
+    // 1) Suppress AbortError from premature stream closure
+    // 2) Parse SSE events properly (line-by-line)
+    // 3) Convert RUN_ERROR to text content so the error is visible in the message
+    // 4) Strip RUN_FINISHED after RUN_ERROR to prevent pipeline validation error
     const origFetch = window.fetch.bind(window);
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -201,10 +205,13 @@ export function useCustomRuntime(
         if (url.includes("/api/agent/chat")) {
           diagMsg("FETCH RESPONSE status=", response.status, "statusText=", response.statusText, "ok=", response.ok, "contentType=", response.headers.get("content-type"));
         }
-        // Wrap the response body to suppress AbortError from premature stream closure
         if (url.includes("/api/agent/chat") && response.ok && response.body) {
           const reader = response.body.getReader();
           let chunkCount = 0;
+          let sawRunError = false;
+          let errorMsgIdCount = 0;
+          const decoder = new TextDecoder();
+          let buffer = "";
           const newStream = new ReadableStream({
             async start(controller) {
               try {
@@ -212,8 +219,48 @@ export function useCustomRuntime(
                   const { done, value } = await reader.read();
                   if (done) break;
                   chunkCount++;
-                  diagMsg(`FETCH CHUNK[${chunkCount}] length=${value.length} text="${new TextDecoder().decode(value, { stream: true }).substring(0, 200)}"`);
-                  controller.enqueue(value);
+                  buffer += decoder.decode(value, { stream: true });
+                  // Process complete SSE events (delimited by \n\n)
+                  let eventEnd;
+                  while ((eventEnd = buffer.indexOf('\n\n')) !== -1) {
+                    const sseBlock = buffer.slice(0, eventEnd);
+                    buffer = buffer.slice(eventEnd + 2);
+                    // Extract data: lines from the SSE block
+                    const dataLines: string[] = [];
+                    for (const line of sseBlock.split('\n')) {
+                      if (line.startsWith('data: ')) {
+                        dataLines.push(line.slice(6));
+                      }
+                    }
+                    if (dataLines.length === 0) continue;
+                    for (const jsonStr of dataLines) {
+                      try {
+                        const parsed = JSON.parse(jsonStr);
+                        if (parsed.type === 'RUN_ERROR') {
+                          sawRunError = true;
+                          errorMsgIdCount++;
+                          const errorMsg = parsed.message || 'An error occurred';
+                          const msgId = `error-${errorMsgIdCount}-${Date.now()}`;
+                          const textEvents = [
+                            { type: "TEXT_MESSAGE_START", messageId: msgId },
+                            { type: "TEXT_MESSAGE_CONTENT", delta: `Error: ${errorMsg}`, messageId: msgId },
+                            { type: "TEXT_MESSAGE_END", messageId: msgId },
+                          ].map((e) => `data: ${JSON.stringify(e)}\n\n`).join('');
+                          controller.enqueue(new TextEncoder().encode(textEvents));
+                        } else if (sawRunError && parsed.type === 'RUN_FINISHED') {
+                          diagMsg(`FETCH STRIP RUN_FINISHED after RUN_ERROR`);
+                        } else {
+                          controller.enqueue(new TextEncoder().encode(`data: ${jsonStr}\n\n`));
+                        }
+                      } catch {
+                        controller.enqueue(new TextEncoder().encode(`data: ${jsonStr}\n\n`));
+                      }
+                    }
+                  }
+                }
+                // Flush remaining buffer
+                if (buffer.length > 0) {
+                  controller.enqueue(new TextEncoder().encode(buffer));
                 }
                 diagMsg(`FETCH STREAM COMPLETE totalChunks=${chunkCount}`);
               } catch (e: any) {
