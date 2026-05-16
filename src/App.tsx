@@ -10,7 +10,7 @@ import { AGENT_URL } from "./services/api";
 import { cn } from "./lib/utils";
 import { useCustomRuntime } from "./hooks/useCustomRuntime";
 import { useThreadManager } from "./hooks/useThreadManager";
-import { ThreadBranchContext, computeBranchInfo } from "./hooks/useThreadBranchInfo";
+import { ThreadBranchContext, computeBranchInfo } from "./hooks/useThreadManager";
 
 const agent = new HttpAgent({ url: AGENT_URL });
 

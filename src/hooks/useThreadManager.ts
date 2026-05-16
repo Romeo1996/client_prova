@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback } from "react";
 import type { ThreadMessage } from "@assistant-ui/react";
 import type { ExternalStoreThreadData } from "@assistant-ui/core";
 import type { ReadonlyJSONValue } from "assistant-stream/utils";
@@ -152,4 +152,66 @@ export function useThreadManager() {
     getThreadCount: state.threads.size,
     isEmpty: state.threads.size === 0,
   } as const;
+}
+
+// --- Fork sibling context for BranchPicker ---
+
+export type BranchSibling = {
+  threadId: string;
+  title?: string;
+};
+
+export type ThreadBranchContextType = {
+  messageToSiblings: Record<string, BranchSibling[]>;
+  currentThreadId: string | undefined;
+};
+
+export const ThreadBranchContext = createContext<ThreadBranchContextType>({
+  messageToSiblings: {},
+  currentThreadId: undefined,
+});
+
+export function useThreadBranchInfo() {
+  return useContext(ThreadBranchContext);
+}
+
+export function computeBranchInfo(
+  allThreads: ThreadData[],
+  activeThreadId: string | undefined,
+): ThreadBranchContextType {
+  const messageToSiblings: Record<string, BranchSibling[]> = {};
+
+  for (const thread of allThreads) {
+    if (!thread.state) continue;
+    const state = thread.state as Record<string, unknown>;
+    const forkParentId = state.__forkParentId as string | undefined;
+    const forkParentMsgId = state.__forkParentMessageId as string | undefined;
+    if (!forkParentId || !forkParentMsgId) continue;
+
+    const siblings: BranchSibling[] = [];
+
+    const parentThread = allThreads.find((t) => t.id === forkParentId);
+    if (parentThread) {
+      siblings.push({ threadId: parentThread.id, title: parentThread.title });
+    }
+
+    for (const other of allThreads) {
+      if (other.id === thread.id) continue;
+      const otherState = other.state as Record<string, unknown> | undefined;
+      if (
+        otherState?.__forkParentId === forkParentId &&
+        otherState?.__forkParentMessageId === forkParentMsgId
+      ) {
+        siblings.push({ threadId: other.id, title: other.title });
+      }
+    }
+
+    siblings.push({ threadId: thread.id, title: thread.title });
+
+    if (siblings.length > 1) {
+      messageToSiblings[forkParentMsgId] = siblings;
+    }
+  }
+
+  return { messageToSiblings, currentThreadId: activeThreadId };
 }

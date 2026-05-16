@@ -47,7 +47,7 @@ import {
   SquareIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { useThreadBranchInfo, type BranchSibling } from "../../hooks/useThreadBranchInfo";
+import { useThreadBranchInfo, type BranchSibling } from "../../hooks/useThreadManager";
 
 export const Thread: FC = () => {
   return (
