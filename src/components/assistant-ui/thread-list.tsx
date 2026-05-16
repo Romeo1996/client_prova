@@ -1,3 +1,4 @@
+import { useSidebar } from "src/components/ui/sidebar";
 import { Button } from "src/components/ui/button";
 import { Skeleton } from "src/components/ui/skeleton";
 import {
@@ -34,8 +35,9 @@ export const ThreadList: FC = () => {
 };
 
 const ThreadListNew: FC = () => {
+  const { isMobile, setOpenMobile } = useSidebar();
   return (
-    <ThreadListPrimitive.New render={<Button variant="outline" className="aui-thread-list-new h-9 justify-start gap-2 rounded-lg px-3 text-sm shadow-sm transition-all duration-150 hover:border-primary/30 hover:bg-muted hover:shadow-md data-active:bg-muted" />}><PlusIcon className="size-4" />New Thread
+    <ThreadListPrimitive.New render={<Button variant="outline" className="aui-thread-list-new h-9 justify-start gap-2 rounded-lg px-3 text-sm shadow-sm transition-all duration-150 hover:border-primary/30 hover:bg-muted hover:shadow-md data-active:bg-muted" onClick={() => { if (isMobile) setOpenMobile(false); }} />}><PlusIcon className="size-4" />New Thread
             </ThreadListPrimitive.New>
   );
 };
@@ -58,9 +60,10 @@ const ThreadListSkeleton: FC = () => {
 };
 
 const ThreadListItem: FC = () => {
+  const { isMobile, setOpenMobile } = useSidebar();
   return (
     <ThreadListItemPrimitive.Root className="aui-thread-list-item group flex h-9 items-center gap-2 rounded-lg transition-all duration-150 hover:bg-accent/50 hover:translate-x-0.5 focus-visible:bg-muted focus-visible:outline-none data-active:bg-muted">
-      <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex h-full min-w-0 flex-1 items-center px-3 text-start text-sm">
+      <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex h-full min-w-0 flex-1 items-center px-3 text-start text-sm" onClick={() => { if (isMobile) setOpenMobile(false); }}>
         <span className="aui-thread-list-item-title min-w-0 flex-1 truncate">
           <ThreadListItemPrimitive.Title fallback="New Chat" />
         </span>

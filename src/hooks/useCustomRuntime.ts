@@ -251,6 +251,7 @@ export function useCustomRuntime(
           await toolInvocationsRef.current.abort();
           cancelledMessageIdRef.current =
             core.getMessages().findLast((m) => m.role === "assistant")?.id ?? null;
+          notifyUpdate();
         },
         onAddToolResult: (options: Parameters<typeof core.addToolResult>[0]) => core.addToolResult(options),
         onResume: (config: Parameters<typeof core.resume>[0]) => core.resume(config),
