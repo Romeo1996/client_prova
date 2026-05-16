@@ -211,12 +211,13 @@ export function useCustomRuntime(
   const store = useMemo(
     () => {
       void _version;
+      const messages = core.getMessages();
 
       return {
         isLoading: core.isLoading,
-        messages: core.getMessages(),
+        messages,
         state: core.getState(),
-        isRunning: core.isRunning() || hasExecutingTools,
+        isRunning: hasExecutingTools || messages.some((m) => m.role === "assistant" && m.status?.type === "running"),
         setMessages: (messages: readonly ThreadMessage[]) =>
           core.applyExternalMessages(messages),
         onNew: async (message: AppendMessage) => {
