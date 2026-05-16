@@ -228,9 +228,9 @@ export function useCustomRuntime(
         onReload: (parentId: string | null, config: { runConfig?: any }) =>
           core.reload(parentId, config),
         onCancel: async () => {
-          await core.cancel();
-          setToolStatuses({});
           await toolInvocationsRef.current.abort();
+          setToolStatuses({});
+          await core.cancel();
           const msgs = core.getMessages();
           const idx = msgs.findLastIndex((m) => m.role === "assistant");
           if (idx !== -1) {
@@ -242,6 +242,7 @@ export function useCustomRuntime(
               ),
             );
           }
+          notifyUpdate();
         },
         onAddToolResult: (options: Parameters<typeof core.addToolResult>[0]) => core.addToolResult(options),
         onResume: (config: Parameters<typeof core.resume>[0]) => core.resume(config),
