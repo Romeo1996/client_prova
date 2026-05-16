@@ -224,6 +224,20 @@ export function useCustomRuntime(
           await core.cancel();
           setToolStatuses({});
           await toolInvocationsRef.current.abort();
+          // Wait for agent's spurious RUN_ERROR/RUN_FINISHED cleanup (microtasks)
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          // Force the last assistant message status back to incomplete
+          const msgs = core.getMessages();
+          const last = msgs.at(-1);
+          if (last?.role === "assistant") {
+            core.applyExternalMessages(
+              msgs.map((m) =>
+                m.id === last.id
+                  ? { ...m, status: { type: "incomplete" as const, reason: "cancelled" as const } }
+                  : m,
+              ),
+            );
+          }
         },
         onAddToolResult: (options) => core.addToolResult(options),
         onResume: (config) => core.resume(config),
@@ -232,8 +246,6 @@ export function useCustomRuntime(
             options.toolCallId,
             options.payload,
           ),
-        setMessages: (messages: readonly ThreadMessage[]) =>
-          core.applyExternalMessages(messages),
         onImport: (messages: readonly ThreadMessage[]) =>
           core.applyExternalMessages(messages),
         onLoadExternalState: (state: ReadonlyJSONValue) =>

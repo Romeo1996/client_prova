@@ -176,25 +176,30 @@ const MessageError: FC = () => {
   );
 };
 
+const SkippedIndicator: FC = () => {
+  return (
+    <div className="mx-2 my-2 flex items-center gap-2 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-4 py-2.5 text-muted-foreground text-sm">
+      <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="14" />
+      </svg>
+      <span>Answer was skipped</span>
+    </div>
+  );
+};
+
 const AssistantMessage: FC = () => {
   const status = useAuiState((s) => s.message.status);
-  const isIncomplete = status?.type === "incomplete";
 
-  if (isIncomplete) {
+  if (status?.type === "incomplete") {
     return (
       <MessagePrimitive.Root
         data-slot="aui_assistant-message-root"
         data-role="assistant"
         className="fade-in slide-in-from-bottom-1 relative animate-in duration-150"
       >
-        <div className="mx-2 my-2 flex items-center gap-2 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-4 py-2.5 text-muted-foreground text-sm">
-          <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="20" x2="18" y2="10" />
-            <line x1="12" y1="20" x2="12" y2="4" />
-            <line x1="6" y1="20" x2="6" y2="14" />
-          </svg>
-          <span>Answer was skipped</span>
-        </div>
+        <SkippedIndicator />
       </MessagePrimitive.Root>
     );
   }
@@ -312,12 +317,21 @@ const AssistantActionBar: FC = () => {
 };
 
 const UserMessage: FC = () => {
+  const messages = useAuiState((s) => s.thread.messages);
+  const index = useAuiState((s) => s.message.index);
+  const prevIsUser = index > 0 && messages[index - 1]?.role === "user";
+
   return (
     <MessagePrimitive.Root
       data-slot="aui_user-message-root"
       className="fade-in slide-in-from-bottom-1 grid animate-in auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] content-start gap-y-2 px-2 duration-150 [contain-intrinsic-size:auto_60px] [content-visibility:auto] [&:where(>*)]:col-start-2"
       data-role="user"
     >
+      {prevIsUser && (
+        <div className="col-span-full">
+          <SkippedIndicator />
+        </div>
+      )}
       <UserMessageAttachments />
 
       <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
