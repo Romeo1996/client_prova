@@ -307,7 +307,7 @@ export function useCustomRuntime(
                   core.applyExternalMessages(data.messages);
                   const state = data.state as Record<string, unknown> | undefined;
                   if (state) {
-                    core.loadExternalState(state);
+                    core.loadExternalState(state as any);
                     if (state.__parentIds) {
                       const loadedParents = (core as any).assistantHistoryParents as Map<string, string | null>;
                       loadedParents.clear();
@@ -350,7 +350,7 @@ export function useCustomRuntime(
             core.applyExternalMessages(result.messages);
             const state = result.state as Record<string, unknown> | undefined;
             if (state) {
-              core.loadExternalState(state);
+              core.loadExternalState(state as any);
               const loadedParents = (core as any).assistantHistoryParents as Map<string, string | null>;
               if (state.__parentIds) {
                 loadedParents.clear();
