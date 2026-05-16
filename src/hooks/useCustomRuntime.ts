@@ -258,8 +258,8 @@ export function useCustomRuntime(
               core.applyExternalMessages(
                 msgs.map((m, i) =>
                   i === idx
-                    ? { ...m, status: { type: "incomplete" as const, reason: "cancelled" as const } }
-                    : m,
+                  ? { ...m, content: [], status: { type: "incomplete" as const, reason: "cancelled" as const } } as ThreadMessage
+                  : m,
                 ),
               );
             }
@@ -284,7 +284,7 @@ export function useCustomRuntime(
             core.applyExternalMessages(
               msgs.map((m, i) =>
                 i === idx
-                  ? { ...m, content: [], status: { type: "incomplete" as const, reason: "cancelled" as const } }
+                  ? { ...m, content: [], status: { type: "incomplete" as const, reason: "cancelled" as const } } as ThreadMessage
                   : m,
               ),
             );
