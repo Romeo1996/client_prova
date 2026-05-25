@@ -64,12 +64,14 @@ export function useThreadManager(userId: string) {
             state: (t.state as ReadonlyJSONValue | undefined) ?? existing.state,
           });
         } else {
-          console.log('[DEBUG] refreshThreads ADD new thread id:', t.id, 'title:', t.title);
+          const beState = (t.state as ReadonlyJSONValue | undefined) ?? undefined;
+          const fallbackTitle = t.title ?? (beState ? "Chat" : null) ?? "New Chat";
+          console.log('[DEBUG] refreshThreads ADD new thread id:', t.id, 'title:', t.title, 'fallbackTitle:', fallbackTitle, 'hasState:', !!beState);
           next.set(t.id, {
             id: t.id,
-            title: t.title ?? "New Chat",
+            title: fallbackTitle,
             messages: [],
-            state: (t.state as ReadonlyJSONValue | undefined) ?? undefined,
+            state: beState,
           });
         }
       }
