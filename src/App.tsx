@@ -34,8 +34,9 @@ export default function App() {
       threadId: activeThreadId,
       threads: getThreads(),
       isLoading: false,
-      onBeforeSwitch: (messages: any, state?: any) => {
-        if (activeThreadId) saveThread(activeThreadId, { messages, state });
+      onBeforeSwitch: (messages: any, state?: any, targetThreadId?: string) => {
+        const id = targetThreadId ?? activeThreadId;
+        if (id) saveThread(id, { messages, state });
       },
       onSwitchToNewThread: async () => {
         return createThread();

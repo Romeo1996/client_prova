@@ -51,6 +51,7 @@ export type ThreadListAdapter = {
   onBeforeSwitch?: (
     messages: readonly ThreadMessage[],
     state?: ReadonlyJSONValue,
+    targetThreadId?: string,
   ) => void;
 };
 
@@ -451,18 +452,16 @@ export function useCustomRuntime(
               (options.agent as any).threadId = newThreadId;
               core.applyExternalMessages(truncated);
 
-              const forkState: Record<string, unknown> = {
+              const existingState = core.getState() as Record<string, unknown> | undefined;
+              const forkState = {
                 __forkParentId: adapter.threadId,
                 __forkParentMessageId: parentId ?? truncated.at(-1)?.id ?? null,
               };
 
-              return core.reload(parentId, {
-                ...config,
-                runConfig: {
-                  ...config.runConfig,
-                  state: { ...config.runConfig?.state, ...forkState },
-                },
-              });
+              core.loadExternalState({ ...existingState, ...forkState });
+              adapter.onBeforeSwitch?.(truncated, forkState, newThreadId);
+
+              return core.reload(parentId, config);
             }
           }
           return core.reload(parentId, config);
