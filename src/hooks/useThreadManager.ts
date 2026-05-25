@@ -45,7 +45,7 @@ export function useThreadManager(userId: string) {
   const refreshThreads = useCallback(async () => {
     if (!userId) return;
     const beThreads = await fetchThreads(userId);
-    console.log('[TitleDebug] refreshThreads beThreads:', JSON.stringify(beThreads));
+    console.log('[DEBUG] refreshThreads from BE:', JSON.stringify(beThreads.map(t => ({ id: t.id, title: t.title, state: t.state }))));
 
     setState((prev) => {
       const next = new Map(prev.threads);
@@ -55,13 +55,16 @@ export function useThreadManager(userId: string) {
         if (next.has(t.id)) {
           const existing = next.get(t.id)!;
           const newTitle = t.title ?? existing.title;
-          if (existing.title !== newTitle) console.log('[TitleDebug] refreshThreads updating title:', existing.title, '->', newTitle);
+          if (newTitle !== existing.title) {
+            console.log('[DEBUG] refreshThreads UPDATE title:', existing.title, '->', newTitle, 'for id:', t.id);
+          }
           next.set(t.id, {
             ...existing,
             title: newTitle,
             state: (t.state as ReadonlyJSONValue | undefined) ?? existing.state,
           });
         } else {
+          console.log('[DEBUG] refreshThreads ADD new thread id:', t.id, 'title:', t.title);
           next.set(t.id, {
             id: t.id,
             title: t.title ?? "New Chat",
@@ -111,13 +114,15 @@ export function useThreadManager(userId: string) {
               ? (data.state as Record<string, unknown>).thread_title
               : undefined;
           const newTitle = (stateTitle as string | undefined) ?? userTitle ?? existing.title;
-          console.log('[TitleDebug] saveThread id:', id, 'stateTitle:', stateTitle, 'userTitle:', userTitle, 'existing.title:', existing.title, '-> newTitle:', newTitle);
+          console.log('[DEBUG] saveThread id:', id, 'stateTitle:', stateTitle, 'userTitle:', userTitle, 'existing.title:', existing.title, '-> newTitle:', newTitle, 'msgsCount:', data.messages.length);
           next.set(id, {
             ...existing,
             messages: data.messages,
             state: data.state,
             title: newTitle,
           });
+        } else {
+          console.log('[DEBUG] saveThread id NOT FOUND in local state:', id);
         }
         return { ...prev, threads: next };
       });

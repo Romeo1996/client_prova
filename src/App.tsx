@@ -49,27 +49,32 @@ export default function App() {
       onBeforeSwitch: (messages: any, state?: any, targetThreadId?: string) => {
         const id = targetThreadId ?? activeThreadId;
         if (id) {
-          console.log('[TitleDebug] onBeforeSwitch id:', id, 'state:', JSON.stringify(state));
+          console.log('[DEBUG] onBeforeSwitch saving id:', id, 'state:', JSON.stringify(state), 'msgsCount:', messages.length);
           saveThread(id, { messages, state });
         }
       },
       onSwitchToNewThread: async () => {
+        console.log('[DEBUG] onSwitchToNewThread creating new thread');
         return createThread();
       },
       onSwitchToThread: async (id: string) => {
         setActiveThreadId(id);
         let t = getThread(id);
-        console.log('[TitleDebug] onSwitchToThread id:', id, 'existing title:', t?.title);
+        console.log('[DEBUG] onSwitchToThread id:', id, 'existing title:', t?.title, 'existing msgs:', t?.messages?.length, 'existing state:', JSON.stringify(t?.state));
         if (t && t.messages.length === 0) {
           const data = await fetchThreadData(id, userId);
-          console.log('[TitleDebug] fetchThreadData data:', JSON.stringify(data));
+          console.log('[DEBUG] onSwitchToThread fetchThreadData data:', JSON.stringify(data));
           if (data?.messages?.length) {
             const threadMessages = data.messages as unknown as ThreadMessage[];
             const threadState = data.state as ReadonlyJSONValue | undefined;
             saveThread(id, { messages: threadMessages, state: threadState });
             t = getThread(id);
-            console.log('[TitleDebug] after saveThread title:', t?.title);
+            console.log('[DEBUG] onSwitchToThread after saveThread title:', t?.title, 'state:', JSON.stringify(t?.state));
+          } else {
+            console.log('[DEBUG] onSwitchToThread no messages from BE');
           }
+        } else {
+          console.log('[DEBUG] onSwitchToThread using local cache');
         }
         return { messages: t?.messages ?? [], state: t?.state };
       },
@@ -93,7 +98,7 @@ export default function App() {
     agent,
     adapters: { threadList: threadListAdapter },
     onRunComplete: ({ threadId, messages, state }) => {
-      console.log('[TitleDebug] onRunComplete threadId:', threadId, 'state:', JSON.stringify(state), 'msgsLen:', messages.length);
+      console.log('[DEBUG] onRunComplete threadId:', threadId, 'state:', JSON.stringify(state), 'msgsCount:', messages.length, 'firstUserMsg:', messages.find(m=>m.role==='user')?.content?.find((p:any)=>p.type==='text')?.text);
       saveThread(threadId, { messages, state });
       refreshThreads();
     },

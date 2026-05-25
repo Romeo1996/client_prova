@@ -153,7 +153,10 @@ export function useCustomRuntime(
           const core = coreRef.current as any;
           const threadId = core?.agent?.threadId;
           if (threadId) {
-            cb({ threadId, messages: core.getMessages(), state: core.getState() });
+            const state = core.getState();
+            const msgs = core.getMessages();
+            console.log('[DEBUG] RUN_FINISHED threadId:', threadId, 'state:', JSON.stringify(state), 'msgsCount:', msgs.length);
+            cb({ threadId, messages: msgs, state });
           }
         }
       }
@@ -339,23 +342,40 @@ export function useCustomRuntime(
       onSwitchToNewThread: onSwitchToNewThread
         ? async () => {
             cancelLockRef.current = false;
-            onBeforeSwitch?.(core.getMessages(), core.getState());
+            const beforeState = core.getState();
+            const beforeMsgs = core.getMessages();
+            console.log('[DEBUG] useCustomRuntime onSwitchToNewThread BEFORE - state:', JSON.stringify(beforeState), 'msgsCount:', beforeMsgs.length);
+            onBeforeSwitch?.(beforeMsgs, beforeState);
             toolInvocationsRef.current.reset();
             const newId = await onSwitchToNewThread();
+            console.log('[DEBUG] useCustomRuntime onSwitchToNewThread AFTER - newId:', newId);
             if (newId) (options.agent as any).threadId = newId;
             core.applyExternalMessages([]);
+            core.loadExternalState({});
+            console.log('[DEBUG] useCustomRuntime onSwitchToNewThread DONE - state after reset:', JSON.stringify(core.getState()));
           }
         : undefined,
       onSwitchToThread: onSwitchToThread
         ? async (targetId: string) => {
             cancelLockRef.current = false;
-            onBeforeSwitch?.(core.getMessages(), core.getState());
+            const beforeState = core.getState();
+            const beforeMsgs = core.getMessages();
+            console.log('[DEBUG] useCustomRuntime onSwitchToThread BEFORE - targetId:', targetId, 'currentId:', (options.agent as any).threadId, 'state:', JSON.stringify(beforeState), 'msgsCount:', beforeMsgs.length);
+            onBeforeSwitch?.(beforeMsgs, beforeState);
             toolInvocationsRef.current.reset();
             (options.agent as any).threadId = targetId;
             const result = await onSwitchToThread(targetId);
+            console.log('[DEBUG] useCustomRuntime onSwitchToThread RESULT - result state:', JSON.stringify(result.state), 'result msgsCount:', result.messages.length);
             core.applyExternalMessages(result.messages);
             const state = result.state as Record<string, unknown> | undefined;
-            if (state) core.loadExternalState(state as any);
+            if (state) {
+              core.loadExternalState(state as any);
+              console.log('[DEBUG] useCustomRuntime onSwitchToThread loaded state:', JSON.stringify(state));
+            } else {
+              core.loadExternalState({});
+              console.log('[DEBUG] useCustomRuntime onSwitchToThread no state, reset to {}');
+            }
+            console.log('[DEBUG] useCustomRuntime onSwitchToThread DONE - core.getState():', JSON.stringify(core.getState()));
           }
         : undefined,
     };
@@ -416,6 +436,7 @@ export function useCustomRuntime(
           core.applyExternalMessages(incoming);
         },
         onNew: async (message: AppendMessage) => {
+          console.log('[DEBUG] store.onNew threadId:', (options.agent as any)?.threadId, 'msg:', JSON.stringify(message), 'current state:', JSON.stringify(core.getState()), 'current msgs:', core.getMessages().length);
           if (core.isRunning()) {
             const preCancelMsgs = core.getMessages();
             const hasRunning = preCancelMsgs.some(
