@@ -24,6 +24,34 @@ export async function fetchThreads(userId: string): Promise<ThreadMetadata[]> {
   }
 }
 
+export type ThreadDataDTO = {
+  id: string;
+  title?: string | null;
+  state?: Record<string, unknown> | null;
+  messages: Array<{
+    id: string;
+    role: "user" | "assistant" | "tool";
+    content: unknown[];
+  }>;
+};
+
+export async function fetchThreadData(
+  threadId: string,
+  userId: string,
+): Promise<ThreadDataDTO | null> {
+  const url = `${BASE}/api/threads/${threadId}?userId=${encodeURIComponent(userId)}`;
+  console.log("[api] fetchThreadData:", url);
+  try {
+    const res = await fetch(url);
+    console.log("[api] fetchThreadData status:", res.status);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error("[api] fetchThreadData error:", err);
+    return null;
+  }
+}
+
 export async function deleteThreadOnBE(
   threadId: string,
   userId: string,

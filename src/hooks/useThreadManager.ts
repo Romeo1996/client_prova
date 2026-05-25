@@ -42,38 +42,49 @@ export function useThreadManager(userId: string) {
     return { threads, activeThreadId: initialId, initialized: false };
   });
 
-  useEffect(() => {
+  const refreshThreads = useCallback(async () => {
     if (!userId) return;
+    const beThreads = await fetchThreads(userId);
 
-    fetchThreads(userId).then((beThreads) => {
-      if (beThreads.length === 0) return;
+    setState((prev) => {
+      const next = new Map(prev.threads);
+      const beIds = new Set(beThreads.map((t) => t.id));
 
-      setState((prev) => {
-        const next = new Map(prev.threads);
-
-        for (const t of beThreads) {
-          if (next.has(t.id)) {
-            const existing = next.get(t.id)!;
-            next.set(t.id, {
-              ...existing,
-              title: t.title ?? existing.title,
-              state: (t.state as ReadonlyJSONValue | undefined) ?? existing.state,
-            });
-          } else {
-            next.set(t.id, {
-              id: t.id,
-              title: t.title ?? "New Chat",
-              messages: [],
-              state: (t.state as ReadonlyJSONValue | undefined) ?? undefined,
-            });
-          }
+      for (const t of beThreads) {
+        if (next.has(t.id)) {
+          const existing = next.get(t.id)!;
+          next.set(t.id, {
+            ...existing,
+            title: t.title ?? existing.title,
+            state: (t.state as ReadonlyJSONValue | undefined) ?? existing.state,
+          });
+        } else {
+          next.set(t.id, {
+            id: t.id,
+            title: t.title ?? "New Chat",
+            messages: [],
+            state: (t.state as ReadonlyJSONValue | undefined) ?? undefined,
+          });
         }
+      }
 
-        const activeId = beThreads[0]?.id ?? prev.activeThreadId;
-        return { threads: next, activeThreadId: activeId, initialized: true };
-      });
+      // Remove local empty threads that don't exist on BE
+      for (const [id, thread] of next) {
+        if (!beIds.has(id) && thread.messages.length === 0) {
+          next.delete(id);
+        }
+      }
+
+      const activeId =
+        next.has(prev.activeThreadId) ? prev.activeThreadId
+        : beThreads[0]?.id ?? [...next.keys()][0];
+      return { threads: next, activeThreadId: activeId, initialized: true };
     });
   }, [userId]);
+
+  useEffect(() => {
+    refreshThreads();
+  }, [refreshThreads]);
 
   const saveThread = useCallback(
     (
@@ -91,15 +102,11 @@ export function useThreadManager(userId: string) {
             state: data.state,
             title: userTitle ?? existing.title,
           });
-
-          if (userTitle) {
-            renameThreadOnBE(id, userTitle, userId).catch(() => {});
-          }
         }
         return { ...prev, threads: next };
       });
     },
-    [userId],
+    [],
   );
 
   const createThread = useCallback(() => {
@@ -194,6 +201,7 @@ export function useThreadManager(userId: string) {
     getThreads,
     getAllThreadData,
     updateTitle,
+    refreshThreads,
     initialized: state.initialized,
   } as const;
 }

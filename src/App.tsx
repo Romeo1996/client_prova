@@ -6,7 +6,7 @@ import { ThreadList } from "./components/assistant-ui/thread-list";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "./components/ui/sidebar";
 import { ThemeToggle } from "./components/theme-toggle";
 import { TooltipProvider } from "./components/ui/tooltip";
-import { AGENT_URL } from "./services/api";
+import { AGENT_URL, fetchThreadData } from "./services/api";
 import { cn } from "./lib/utils";
 import { useCustomRuntime } from "./hooks/useCustomRuntime";
 import { useThreadManager } from "./hooks/useThreadManager";
@@ -37,7 +37,7 @@ export default function App() {
     });
   }, [userId]);
 
-  const { activeThreadId, getThreads, saveThread, createThread, setActiveThreadId, getThread, deleteThread, getAllThreadData } = useThreadManager(userId);
+  const { activeThreadId, getThreads, saveThread, createThread, setActiveThreadId, getThread, deleteThread, getAllThreadData, refreshThreads } = useThreadManager(userId);
 
   const threadListAdapter = useMemo(
     () => ({
@@ -53,7 +53,14 @@ export default function App() {
       },
       onSwitchToThread: async (id: string) => {
         setActiveThreadId(id);
-        const t = getThread(id);
+        let t = getThread(id);
+        if (t && t.messages.length === 0) {
+          const data = await fetchThreadData(id, userId);
+          if (data?.messages?.length) {
+            saveThread(id, { messages: data.messages, state: data.state ?? undefined });
+            t = getThread(id);
+          }
+        }
         return { messages: t?.messages ?? [], state: t?.state };
       },
       getThread: (id: string) => {
@@ -77,6 +84,7 @@ export default function App() {
     adapters: { threadList: threadListAdapter },
     onRunComplete: ({ threadId, messages, state }) => {
       saveThread(threadId, { messages, state });
+      refreshThreads();
     },
   });
 
