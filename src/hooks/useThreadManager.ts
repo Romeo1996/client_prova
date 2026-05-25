@@ -45,6 +45,7 @@ export function useThreadManager(userId: string) {
   const refreshThreads = useCallback(async () => {
     if (!userId) return;
     const beThreads = await fetchThreads(userId);
+    console.log('[TitleDebug] refreshThreads beThreads:', JSON.stringify(beThreads));
 
     setState((prev) => {
       const next = new Map(prev.threads);
@@ -53,9 +54,11 @@ export function useThreadManager(userId: string) {
       for (const t of beThreads) {
         if (next.has(t.id)) {
           const existing = next.get(t.id)!;
+          const newTitle = t.title ?? existing.title;
+          if (existing.title !== newTitle) console.log('[TitleDebug] refreshThreads updating title:', existing.title, '->', newTitle);
           next.set(t.id, {
             ...existing,
-            title: t.title ?? existing.title,
+            title: newTitle,
             state: (t.state as ReadonlyJSONValue | undefined) ?? existing.state,
           });
         } else {
@@ -107,11 +110,13 @@ export function useThreadManager(userId: string) {
             data.state && typeof data.state === "object" && !Array.isArray(data.state)
               ? (data.state as Record<string, unknown>).thread_title
               : undefined;
+          const newTitle = (stateTitle as string | undefined) ?? userTitle ?? existing.title;
+          console.log('[TitleDebug] saveThread id:', id, 'stateTitle:', stateTitle, 'userTitle:', userTitle, 'existing.title:', existing.title, '-> newTitle:', newTitle);
           next.set(id, {
             ...existing,
             messages: data.messages,
             state: data.state,
-            title: (stateTitle as string | undefined) ?? userTitle ?? existing.title,
+            title: newTitle,
           });
         }
         return { ...prev, threads: next };

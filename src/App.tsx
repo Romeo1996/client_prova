@@ -48,7 +48,10 @@ export default function App() {
       isLoading: false,
       onBeforeSwitch: (messages: any, state?: any, targetThreadId?: string) => {
         const id = targetThreadId ?? activeThreadId;
-        if (id) saveThread(id, { messages, state });
+        if (id) {
+          console.log('[TitleDebug] onBeforeSwitch id:', id, 'state:', JSON.stringify(state));
+          saveThread(id, { messages, state });
+        }
       },
       onSwitchToNewThread: async () => {
         return createThread();
@@ -56,13 +59,16 @@ export default function App() {
       onSwitchToThread: async (id: string) => {
         setActiveThreadId(id);
         let t = getThread(id);
+        console.log('[TitleDebug] onSwitchToThread id:', id, 'existing title:', t?.title);
         if (t && t.messages.length === 0) {
           const data = await fetchThreadData(id, userId);
+          console.log('[TitleDebug] fetchThreadData data:', JSON.stringify(data));
           if (data?.messages?.length) {
             const threadMessages = data.messages as unknown as ThreadMessage[];
             const threadState = data.state as ReadonlyJSONValue | undefined;
             saveThread(id, { messages: threadMessages, state: threadState });
             t = getThread(id);
+            console.log('[TitleDebug] after saveThread title:', t?.title);
           }
         }
         return { messages: t?.messages ?? [], state: t?.state };
@@ -87,6 +93,7 @@ export default function App() {
     agent,
     adapters: { threadList: threadListAdapter },
     onRunComplete: ({ threadId, messages, state }) => {
+      console.log('[TitleDebug] onRunComplete threadId:', threadId, 'state:', JSON.stringify(state), 'msgsLen:', messages.length);
       saveThread(threadId, { messages, state });
       refreshThreads();
     },
