@@ -140,6 +140,28 @@ export function useCustomRuntime(
       } else if (event.type === "RUN_FINISHED") {
         console.log('[DEBUG-SSE] RUN_FINISHED (pre-process)');
       }
+
+      // Handle STATE_DELTA: apply JSON patches to current stateSnapshot
+      // (the FE library ignores STATE_DELTA, but it carries thread_title
+      //  from after_agent_callback; needed when STATE_SNAPSHOT doesn't arrive)
+      if (event.type === "STATE_DELTA" && Array.isArray(event.delta)) {
+        const current = coreAny.stateSnapshot || {};
+        let updated: any = { ...(current as object) };
+        let changed = false;
+        for (const op of event.delta) {
+          if ((op.op === "add" || op.op === "replace") && op.path) {
+            const key = op.path.replace(/^\//, '');
+            if (key) {
+              updated[key] = op.value;
+              changed = true;
+            }
+          }
+        }
+        if (changed) {
+          coreAny.loadExternalState(updated);
+        }
+        return; // don't pass to origHandleEvent (it ignores STATE_DELTA)
+      }
       // Convert pipeline validation/ordering errors to RUN_FINISHED
       if (event.type === "RUN_ERROR" && typeof event.message === "string") {
         const isPipelineError = event.message.includes("Cannot send event type") || event.message.includes("First event must");

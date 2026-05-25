@@ -68,8 +68,8 @@ export default function App() {
             const threadMessages = data.messages as unknown as ThreadMessage[];
             const threadState = data.state as ReadonlyJSONValue | undefined;
             saveThread(id, { messages: threadMessages, state: threadState });
-            t = getThread(id);
-            console.log('[DEBUG] onSwitchToThread after saveThread title:', t?.title, 'state:', JSON.stringify(t?.state));
+            console.log('[DEBUG] onSwitchToThread returning BE data directly, msgs:', threadMessages.length);
+            return { messages: threadMessages, state: threadState };
           } else {
             console.log('[DEBUG] onSwitchToThread no messages from BE');
           }
