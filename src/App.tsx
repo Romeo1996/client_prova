@@ -11,8 +11,8 @@ import { cn } from "./lib/utils";
 import { useCustomRuntime } from "./hooks/useCustomRuntime";
 import { useThreadManager } from "./hooks/useThreadManager";
 import { ThreadBranchContext, computeBranchInfo } from "./hooks/useThreadManager";
-
-const agent = new HttpAgent({ url: AGENT_URL });
+import { useUserId } from "./hooks/useUserId";
+import { UserIdSelector } from "./components/assistant-ui/user-selector";
 
 function SidebarTriggerWrapper() {
   const { open } = useSidebar();
@@ -27,7 +27,14 @@ function SidebarTriggerWrapper() {
 }
 
 export default function App() {
-  const { activeThreadId, getThreads, saveThread, createThread, setActiveThreadId, getThread, deleteThread, getAllThreadData } = useThreadManager();
+  const { userId, updateUserId } = useUserId();
+
+  const agent = useMemo(() => new HttpAgent({
+    url: AGENT_URL,
+    headers: { "X-User-Id": userId },
+  }), [userId]);
+
+  const { activeThreadId, getThreads, saveThread, createThread, setActiveThreadId, getThread, deleteThread, getAllThreadData } = useThreadManager(userId);
 
   const threadListAdapter = useMemo(
     () => ({
@@ -75,6 +82,7 @@ export default function App() {
                 <ThreadList />
               </SidebarContent>
               <SidebarFooter className="border-t border-sidebar-border px-2 py-2">
+                <UserIdSelector userId={userId} onUserIdChange={updateUserId} />
                 <ThemeToggle />
               </SidebarFooter>
             </Sidebar>

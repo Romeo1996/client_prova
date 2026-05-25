@@ -1,7 +1,8 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import type { ThreadMessage } from "@assistant-ui/react";
 import type { ExternalStoreThreadData } from "@assistant-ui/core";
 import type { ReadonlyJSONValue } from "assistant-stream/utils";
+import { fetchThreads, deleteThreadOnBE, renameThreadOnBE } from "src/services/api";
 
 export type ThreadData = {
   id: string;
@@ -13,6 +14,7 @@ export type ThreadData = {
 type ThreadManagerState = {
   threads: Map<string, ThreadData>;
   activeThreadId: string | undefined;
+  initialized: boolean;
 };
 
 const extractTitle = (messages: ThreadMessage[]): string | null => {
@@ -27,7 +29,7 @@ const extractTitle = (messages: ThreadMessage[]): string | null => {
   return text.length > 50 ? text.slice(0, 50) + "..." : text;
 };
 
-export function useThreadManager() {
+export function useThreadManager(userId: string) {
   const [state, setState] = useState<ThreadManagerState>(() => {
     const initialId = crypto.randomUUID();
     const threads = new Map<string, ThreadData>();
@@ -37,50 +39,41 @@ export function useThreadManager() {
       messages: [],
       state: undefined,
     });
-    return { threads, activeThreadId: initialId };
+    return { threads, activeThreadId: initialId, initialized: false };
   });
 
-  const createThread = useCallback(() => {
-    const id = crypto.randomUUID();
-    setState((prev) => {
-      const next = new Map(prev.threads);
-      next.set(id, {
-        id,
-        title: "New Chat",
-        messages: [],
-        state: undefined,
-      });
-      return { threads: next, activeThreadId: id };
-    });
-    return id;
-  }, []);
+  useEffect(() => {
+    if (!userId) return;
 
-  const deleteThread = useCallback((id: string) => {
-    setState((prev) => {
-      const next = new Map(prev.threads);
-      const wasActive = prev.activeThreadId === id;
-      next.delete(id);
+    fetchThreads(userId).then((beThreads) => {
+      if (beThreads.length === 0) return;
 
-      let newActiveId = prev.activeThreadId;
+      setState((prev) => {
+        const next = new Map(prev.threads);
 
-      if (wasActive) {
-        if (next.size > 0) {
-          newActiveId = next.keys().next().value!;
-        } else {
-          const newId = crypto.randomUUID();
-          next.set(newId, {
-            id: newId,
-            title: "New Chat",
-            messages: [],
-            state: undefined,
-          });
-          newActiveId = newId;
+        for (const t of beThreads) {
+          if (next.has(t.id)) {
+            const existing = next.get(t.id)!;
+            next.set(t.id, {
+              ...existing,
+              title: t.title ?? existing.title,
+              state: (t.state as ReadonlyJSONValue | undefined) ?? existing.state,
+            });
+          } else {
+            next.set(t.id, {
+              id: t.id,
+              title: t.title ?? "New Chat",
+              messages: [],
+              state: (t.state as ReadonlyJSONValue | undefined) ?? undefined,
+            });
+          }
         }
-      }
 
-      return { threads: next, activeThreadId: newActiveId };
+        const activeId = beThreads[0]?.id ?? prev.activeThreadId;
+        return { threads: next, activeThreadId: activeId, initialized: true };
+      });
     });
-  }, []);
+  }, [userId]);
 
   const saveThread = useCallback(
     (
@@ -98,11 +91,59 @@ export function useThreadManager() {
             state: data.state,
             title: userTitle ?? existing.title,
           });
+
+          if (userTitle) {
+            renameThreadOnBE(id, userTitle, userId).catch(() => {});
+          }
         }
         return { ...prev, threads: next };
       });
     },
-    [],
+    [userId],
+  );
+
+  const createThread = useCallback(() => {
+    const id = crypto.randomUUID();
+    setState((prev) => {
+      const next = new Map(prev.threads);
+      next.set(id, {
+        id,
+        title: "New Chat",
+        messages: [],
+        state: undefined,
+      });
+      return { threads: next, activeThreadId: id };
+    });
+    return id;
+  }, []);
+
+  const deleteThread = useCallback(
+    (id: string) => {
+      deleteThreadOnBE(id, userId).catch(() => {});
+      setState((prev) => {
+        const next = new Map(prev.threads);
+        const wasActive = prev.activeThreadId === id;
+        next.delete(id);
+
+        let newActiveId = prev.activeThreadId;
+        if (wasActive) {
+          if (next.size > 0) {
+            newActiveId = next.keys().next().value!;
+          } else {
+            const newId = crypto.randomUUID();
+            next.set(newId, {
+              id: newId,
+              title: "New Chat",
+              messages: [],
+              state: undefined,
+            });
+            newActiveId = newId;
+          }
+        }
+        return { threads: next, activeThreadId: newActiveId };
+      });
+    },
+    [userId],
   );
 
   const getThread = useCallback(
@@ -124,16 +165,20 @@ export function useThreadManager() {
     setState((prev) => ({ ...prev, activeThreadId: id }));
   }, []);
 
-  const updateTitle = useCallback((id: string, title: string) => {
-    setState((prev) => {
-      const next = new Map(prev.threads);
-      const existing = next.get(id);
-      if (existing) {
-        next.set(id, { ...existing, title });
-      }
-      return { ...prev, threads: next };
-    });
-  }, []);
+  const updateTitle = useCallback(
+    (id: string, title: string) => {
+      renameThreadOnBE(id, title, userId).catch(() => {});
+      setState((prev) => {
+        const next = new Map(prev.threads);
+        const existing = next.get(id);
+        if (existing) {
+          next.set(id, { ...existing, title });
+        }
+        return { ...prev, threads: next };
+      });
+    },
+    [userId],
+  );
 
   const getAllThreadData = useCallback((): ThreadData[] => {
     return Array.from(state.threads.values());
@@ -149,8 +194,7 @@ export function useThreadManager() {
     getThreads,
     getAllThreadData,
     updateTitle,
-    getThreadCount: state.threads.size,
-    isEmpty: state.threads.size === 0,
+    initialized: state.initialized,
   } as const;
 }
 
