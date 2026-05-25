@@ -98,7 +98,7 @@ export default function App() {
     agent,
     adapters: { threadList: threadListAdapter },
     onRunComplete: ({ threadId, messages, state }) => {
-      console.log('[DEBUG] onRunComplete threadId:', threadId, 'state:', JSON.stringify(state), 'msgsCount:', messages.length, 'firstUserMsg:', messages.find(m=>m.role==='user')?.content?.find((p:any)=>p.type==='text')?.text);
+      console.log('[DEBUG] onRunComplete threadId:', threadId, 'state:', JSON.stringify(state), 'msgsCount:', messages.length);
       saveThread(threadId, { messages, state });
       refreshThreads();
     },
