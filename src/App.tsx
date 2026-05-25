@@ -39,7 +39,7 @@ export default function App() {
     });
   }, [userId]);
 
-  const { activeThreadId, getThreads, saveThread, createThread, setActiveThreadId, getThread, deleteThread, getAllThreadData, refreshThreads } = useThreadManager(userId);
+  const { activeThreadId, getThreads, saveThread, createThread, setActiveThreadId, getThread, deleteThread, getAllThreadData, refreshThreads, initialized } = useThreadManager(userId);
 
   const threadListAdapter = useMemo(
     () => ({
@@ -91,6 +91,14 @@ export default function App() {
       refreshThreads();
     },
   });
+
+  if (!initialized) {
+    return (
+      <div className="flex h-dvh items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider>
