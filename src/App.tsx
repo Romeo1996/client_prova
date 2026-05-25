@@ -6,6 +6,8 @@ import { ThreadList } from "./components/assistant-ui/thread-list";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "./components/ui/sidebar";
 import { ThemeToggle } from "./components/theme-toggle";
 import { TooltipProvider } from "./components/ui/tooltip";
+import type { ThreadMessage } from "@assistant-ui/react";
+import type { ReadonlyJSONValue } from "assistant-stream/utils";
 import { AGENT_URL, fetchThreadData } from "./services/api";
 import { cn } from "./lib/utils";
 import { useCustomRuntime } from "./hooks/useCustomRuntime";
@@ -57,7 +59,9 @@ export default function App() {
         if (t && t.messages.length === 0) {
           const data = await fetchThreadData(id, userId);
           if (data?.messages?.length) {
-            saveThread(id, { messages: data.messages, state: data.state ?? undefined });
+            const threadMessages = data.messages as unknown as ThreadMessage[];
+            const threadState = data.state as ReadonlyJSONValue | undefined;
+            saveThread(id, { messages: threadMessages, state: threadState });
             t = getThread(id);
           }
         }

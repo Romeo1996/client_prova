@@ -75,9 +75,10 @@ export function useThreadManager(userId: string) {
         }
       }
 
+      const prevId = prev.activeThreadId;
       const activeId =
-        next.has(prev.activeThreadId) ? prev.activeThreadId
-        : beThreads[0]?.id ?? [...next.keys()][0];
+        (prevId && next.has(prevId)) ? prevId
+        : (beThreads[0]?.id ?? [...next.keys()][0] ?? crypto.randomUUID());
       return { threads: next, activeThreadId: activeId, initialized: true };
     });
   }, [userId]);
