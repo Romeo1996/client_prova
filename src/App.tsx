@@ -29,10 +29,13 @@ function SidebarTriggerWrapper() {
 export default function App() {
   const { userId, updateUserId } = useUserId();
 
-  const agent = useMemo(() => new HttpAgent({
-    url: AGENT_URL,
-    headers: { "X-User-Id": userId },
-  }), [userId]);
+  const agent = useMemo(() => {
+    console.log("[App] Creating HttpAgent with X-User-Id:", userId);
+    return new HttpAgent({
+      url: AGENT_URL,
+      headers: { "X-User-Id": userId },
+    });
+  }, [userId]);
 
   const { activeThreadId, getThreads, saveThread, createThread, setActiveThreadId, getThread, deleteThread, getAllThreadData } = useThreadManager(userId);
 
@@ -69,7 +72,13 @@ export default function App() {
     [getAllThreadData, activeThreadId],
   );
 
-  const runtime = useCustomRuntime({ agent, adapters: { threadList: threadListAdapter } });
+  const runtime = useCustomRuntime({
+    agent,
+    adapters: { threadList: threadListAdapter },
+    onRunComplete: ({ threadId, messages, state }) => {
+      saveThread(threadId, { messages, state });
+    },
+  });
 
   return (
     <TooltipProvider>

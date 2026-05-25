@@ -21,17 +21,23 @@ export function useUserId(): UserIdentity {
     const fromUrl = getUserIdFromUrl();
     if (fromUrl) {
       localStorage.setItem(STORAGE_KEY, fromUrl);
+      console.log("[useUserId] resolved from URL:", fromUrl);
       return fromUrl;
     }
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return stored;
+    if (stored) {
+      console.log("[useUserId] resolved from localStorage:", stored);
+      return stored;
+    }
     const fresh = generateUserId();
     localStorage.setItem(STORAGE_KEY, fresh);
+    console.log("[useUserId] generated fresh:", fresh);
     return fresh;
   });
 
   const updateUserId = useCallback((id: string) => {
     localStorage.setItem(STORAGE_KEY, id);
+    console.log("[useUserId] updateUserId ->", id, "reloading...");
     window.location.reload();
   }, []);
 

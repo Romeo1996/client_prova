@@ -10,14 +10,16 @@ export type ThreadMetadata = {
 };
 
 export async function fetchThreads(userId: string): Promise<ThreadMetadata[]> {
+  const url = `${BASE}/api/threads?userId=${encodeURIComponent(userId)}`;
+  console.log("[api] fetchThreads:", url);
   try {
-    const res = await fetch(
-      `${BASE}/api/threads?userId=${encodeURIComponent(userId)}`,
-    );
+    const res = await fetch(url);
+    console.log("[api] fetchThreads status:", res.status);
     if (!res.ok) return [];
     const data = await res.json();
     return data.threads ?? [];
-  } catch {
+  } catch (err) {
+    console.error("[api] fetchThreads error:", err);
     return [];
   }
 }
@@ -26,13 +28,14 @@ export async function deleteThreadOnBE(
   threadId: string,
   userId: string,
 ): Promise<boolean> {
+  const url = `${BASE}/api/threads/${threadId}?userId=${encodeURIComponent(userId)}`;
+  console.log("[api] deleteThreadOnBE:", url);
   try {
-    const res = await fetch(
-      `${BASE}/api/threads/${threadId}?userId=${encodeURIComponent(userId)}`,
-      { method: "DELETE" },
-    );
+    const res = await fetch(url, { method: "DELETE" });
+    console.log("[api] deleteThreadOnBE status:", res.status);
     return res.ok;
-  } catch {
+  } catch (err) {
+    console.error("[api] deleteThreadOnBE error:", err);
     return false;
   }
 }
@@ -42,17 +45,18 @@ export async function renameThreadOnBE(
   title: string,
   userId: string,
 ): Promise<boolean> {
+  const url = `${BASE}/api/threads/${threadId}?userId=${encodeURIComponent(userId)}`;
+  console.log("[api] renameThreadOnBE:", url, "title:", title);
   try {
-    const res = await fetch(
-      `${BASE}/api/threads/${threadId}?userId=${encodeURIComponent(userId)}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
-      },
-    );
+    const res = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+    console.log("[api] renameThreadOnBE status:", res.status);
     return res.ok;
-  } catch {
+  } catch (err) {
+    console.error("[api] renameThreadOnBE error:", err);
     return false;
   }
 }

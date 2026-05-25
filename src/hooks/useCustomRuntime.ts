@@ -55,12 +55,19 @@ export type ThreadListAdapter = {
   ) => void;
 };
 
+type RunCompleteData = {
+  threadId: string;
+  messages: ThreadMessage[];
+  state?: ReadonlyJSONValue;
+};
+
 type UseCustomRuntimeOptions = {
   agent: ConstructorParameters<typeof AgUiThreadRuntimeCore>[0]["agent"];
   logger?: ConstructorParameters<typeof AgUiThreadRuntimeCore>[0]["logger"];
   showThinking?: boolean;
   onError?: (e: Error) => void;
   onCancel?: () => void;
+  onRunComplete?: (data: RunCompleteData) => void;
   adapters?: {
     attachments?: AttachmentAdapter;
     speech?: SpeechSynthesisAdapter;
@@ -106,6 +113,9 @@ export function useCustomRuntime(
   const historyAdapter = options.adapters?.history ?? runtimeAdapters?.history;
   const threadListAdapter = options.adapters?.threadList;
 
+  const onRunCompleteRef = useRef(options.onRunComplete);
+  onRunCompleteRef.current = options.onRunComplete;
+
   if (!coreRef.current) {
     coreRef.current = new AgUiThreadRuntimeCore({
       agent: options.agent,
@@ -136,7 +146,18 @@ export function useCustomRuntime(
           return;
         }
       }
-      return origHandleEvent(aggregator, event);
+      const result = origHandleEvent(aggregator, event);
+      if (event.type === "RUN_FINISHED") {
+        const cb = onRunCompleteRef.current;
+        if (cb) {
+          const core = coreRef.current as any;
+          const threadId = core?.agent?.threadId;
+          if (threadId) {
+            cb({ threadId, messages: core.getMessages(), state: core.getState() });
+          }
+        }
+      }
+      return result;
     };
 
     // Monkey-patch buildRunInput to preserve fork metadata in state
