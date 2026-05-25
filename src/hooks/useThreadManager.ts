@@ -112,7 +112,7 @@ export function useThreadManager(userId: string) {
         messages: [],
         state: undefined,
       });
-      return { threads: next, activeThreadId: id };
+      return { ...prev, threads: next, activeThreadId: id };
     });
     return id;
   }, []);
@@ -140,7 +140,7 @@ export function useThreadManager(userId: string) {
             newActiveId = newId;
           }
         }
-        return { threads: next, activeThreadId: newActiveId };
+        return { ...prev, threads: next, activeThreadId: newActiveId };
       });
     },
     [userId],

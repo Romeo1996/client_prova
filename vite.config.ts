@@ -11,18 +11,16 @@ export default defineConfig({
     },
   },
   server: {
-    proxy: [
-      {
-        context: '/api/agent',
+    proxy: {
+      '/api/agent': {
         target: 'http://130.110.8.177:8086',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/agent/, ''),
       },
-      {
-        context: '/api',
+      '/api': {
         target: 'http://130.110.8.177:8086',
         changeOrigin: true,
       },
-    ],
+    },
   },
 })

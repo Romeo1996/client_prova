@@ -17,7 +17,7 @@ export type UserIdentity = {
 };
 
 export function useUserId(): UserIdentity {
-  const [userId, setUserId] = useState<string>(() => {
+  const [userId] = useState<string>(() => {
     const fromUrl = getUserIdFromUrl();
     if (fromUrl) {
       localStorage.setItem(STORAGE_KEY, fromUrl);
