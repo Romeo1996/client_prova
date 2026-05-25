@@ -103,11 +103,15 @@ export function useThreadManager(userId: string) {
         const existing = next.get(id);
         if (existing) {
           const userTitle = extractTitle(data.messages);
+          const stateTitle =
+            data.state && typeof data.state === "object" && !Array.isArray(data.state)
+              ? (data.state as Record<string, unknown>).thread_title
+              : undefined;
           next.set(id, {
             ...existing,
             messages: data.messages,
             state: data.state,
-            title: userTitle ?? existing.title,
+            title: (stateTitle as string | undefined) ?? userTitle ?? existing.title,
           });
         }
         return { ...prev, threads: next };
