@@ -132,6 +132,14 @@ export function useCustomRuntime(
     // Monkey-patch handleEvent: guard terminal transitions, convert pipeline errors
     const origHandleEvent = coreAny.handleEvent.bind(coreAny);
     coreAny.handleEvent = (aggregator: any, event: any) => {
+      // Log all events for debugging state propagation
+      if (event.type === "STATE_SNAPSHOT") {
+        console.log('[DEBUG-SSE] STATE_SNAPSHOT:', JSON.stringify(event.snapshot));
+      } else if (event.type === "STATE_DELTA") {
+        console.log('[DEBUG-SSE] STATE_DELTA:', JSON.stringify(event.delta));
+      } else if (event.type === "RUN_FINISHED") {
+        console.log('[DEBUG-SSE] RUN_FINISHED (pre-process)');
+      }
       // Convert pipeline validation/ordering errors to RUN_FINISHED
       if (event.type === "RUN_ERROR" && typeof event.message === "string") {
         const isPipelineError = event.message.includes("Cannot send event type") || event.message.includes("First event must");
