@@ -452,13 +452,12 @@ export function useCustomRuntime(
               (options.agent as any).threadId = newThreadId;
               core.applyExternalMessages(truncated);
 
-              const existingState = core.getState() as Record<string, unknown> | undefined;
               const forkState = {
                 __forkParentId: adapter.threadId,
                 __forkParentMessageId: parentId ?? truncated.at(-1)?.id ?? null,
-              };
+              } as any;
 
-              core.loadExternalState({ ...existingState, ...forkState });
+              core.loadExternalState({ ...(core.getState() as any), ...forkState });
               adapter.onBeforeSwitch?.(truncated, forkState, newThreadId);
 
               return core.reload(parentId, config);
