@@ -232,9 +232,10 @@ export function useCustomRuntime(
       if (isChat) console.log('[FE_DEBUG] fetch START url:', url, 'signal aborted:', init?.signal?.aborted);
       try {
         const response = await origFetch(input, init);
-        if (isChat && response.ok && response.body) {
-          console.log('[FE_DEBUG] fetch RESPONSE OK, starting SSE read');
-          const reader = response.body.getReader();
+          if (isChat && response.ok && response.body) {
+            console.log('[FE_DEBUG] fetch RESPONSE OK, starting SSE read');
+            const reader = response.body.getReader();
+            activeReaderRef.current = reader;
           let sawRunError = false;
           let errorMsgIdCount = 0;
           const decoder = new TextDecoder();
@@ -290,13 +291,19 @@ export function useCustomRuntime(
                 }
                 console.log('[FE_DEBUG] SSE stream completed normally');
               } catch (err) {
-                console.log('[FE_DEBUG] SSE stream ERROR:', err instanceof Error ? err.name + ': ' + err.message : String(err));
+                if (err instanceof DOMException && err.name === 'AbortError') {
+                  console.log('[FE_DEBUG] SSE stream ABORTED (reader cancelled)');
+                } else {
+                  console.log('[FE_DEBUG] SSE stream ERROR:', err instanceof Error ? err.name + ': ' + err.message : String(err));
+                }
               } finally {
+                activeReaderRef.current = null;
                 try { controller.close(); } catch {}
               }
             },
             cancel() {
               console.log('[FE_DEBUG] SSE stream CANCELLED by ReadableStream cancel()');
+              activeReaderRef.current = null;
               reader.cancel().catch(() => {});
             },
           });
@@ -340,6 +347,7 @@ export function useCustomRuntime(
   }));
 
   const cancelLockRef = useRef(false);
+  const activeReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
 
   const toolInvocationsRef = useRef({
     reset: () => {},
@@ -512,7 +520,10 @@ export function useCustomRuntime(
             await core.cancel();
             console.log('[FE_DEBUG] onNew cancel - core.cancel() DONE, calling abortRun()');
             (options.agent as HttpAgent).abortRun();
-            console.log('[FE_DEBUG] onNew cancel - abortRun() DONE');
+            console.log('[FE_DEBUG] onNew cancel - abortRun() DONE, cancelling reader');
+            await activeReaderRef.current?.cancel();
+            activeReaderRef.current = null;
+            console.log('[FE_DEBUG] onNew cancel - reader cancelled');
             const msgs = core.getMessages();
             const idx = msgs.findLastIndex((m) => m.role === "assistant");
             if (idx !== -1) {
@@ -581,7 +592,10 @@ export function useCustomRuntime(
           await core.cancel();
           console.log('[FE_DEBUG] onCancel core.cancel() DONE, calling abortRun()');
           (options.agent as HttpAgent).abortRun();
-          console.log('[FE_DEBUG] onCancel abortRun() DONE');
+          console.log('[FE_DEBUG] onCancel abortRun() DONE, cancelling reader');
+          await activeReaderRef.current?.cancel();
+          activeReaderRef.current = null;
+          console.log('[FE_DEBUG] onCancel reader cancelled');
           const msgs = core.getMessages();
           const idx = msgs.findLastIndex((m) => m.role === "assistant");
           if (idx !== -1) {
