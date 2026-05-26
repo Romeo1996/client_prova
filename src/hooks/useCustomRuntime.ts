@@ -68,6 +68,7 @@ type UseCustomRuntimeOptions = {
   onError?: (e: Error) => void;
   onCancel?: () => void;
   onRunComplete?: (data: RunCompleteData) => void;
+  initialized?: boolean;
   adapters?: {
     attachments?: AttachmentAdapter;
     speech?: SpeechSynthesisAdapter;
@@ -610,6 +611,8 @@ export function useCustomRuntime(
   const lastLoadedThreadIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
+    if (!options.initialized) return;
+
     const adapter = threadListAdapter;
     const c = coreRef.current;
     if (!adapter?.threadId || !c || c.isLoading) return;
@@ -617,14 +620,16 @@ export function useCustomRuntime(
 
     const doLoad = async () => {
       if (!adapter.onSwitchToThread) return;
-      lastLoadedThreadIdRef.current = adapter.threadId;
-      (options.agent as any).threadId = adapter.threadId;
-      const result = await adapter.onSwitchToThread(adapter.threadId);
+      const targetId = adapter.threadId;
+      lastLoadedThreadIdRef.current = targetId;
+      (options.agent as any).threadId = targetId;
+      const result = await adapter.onSwitchToThread(targetId);
+      if (lastLoadedThreadIdRef.current !== targetId) return;
       c.applyExternalMessages(result.messages);
       c.loadExternalState((result.state ?? {}) as any);
     };
     doLoad();
-  }, [threadListAdapter?.threadId, coreRef.current]);
+  }, [options.initialized, threadListAdapter?.threadId, coreRef.current]);
 
   return runtime;
 }

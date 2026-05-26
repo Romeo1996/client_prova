@@ -96,6 +96,7 @@ export default function App() {
 
   const runtime = useCustomRuntime({
     agent,
+    initialized,
     adapters: { threadList: threadListAdapter },
     onRunComplete: ({ threadId, messages, state }) => {
       console.log('[DEBUG] onRunComplete threadId:', threadId, 'state:', JSON.stringify(state), 'msgsCount:', messages.length);
