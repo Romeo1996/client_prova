@@ -385,11 +385,7 @@ export function useCustomRuntime(
       onUnarchive,
       onSwitchToNewThread: onSwitchToNewThread
         ? async () => {
-            if (initialLoadResolvedRef.current) {
-              console.log('[DEBUG] onSwitchToNewThread skipped - initialLoadResolved (caller stack:', new Error().stack?.split('\n').slice(2, 6).join(' | '), ')');
-              initialLoadResolvedRef.current = false;
-              return;
-            }
+            if (suppressNewThreadRef.current) return;
             cancelLockRef.current = false;
             const beforeState = core.getState();
             const beforeMsgs = core.getMessages();
@@ -516,6 +512,14 @@ export function useCustomRuntime(
             }
             toolInvocationsRef.current.reset();
             setToolStatuses({});
+            const cb = onRunCompleteRef.current;
+            if (cb) {
+              const c = coreRef.current as any;
+              const threadId = c?.agent?.threadId;
+              if (threadId) {
+                cb({ threadId, messages: core.getMessages(), state: core.getState() });
+              }
+            }
           }
           cancelLockRef.current = false;
           try {
@@ -573,6 +577,14 @@ export function useCustomRuntime(
           }
           toolInvocationsRef.current.reset();
           setToolStatuses({});
+          const cb = onRunCompleteRef.current;
+          if (cb) {
+            const c = coreRef.current as any;
+            const threadId = c?.agent?.threadId;
+            if (threadId) {
+              cb({ threadId, messages: core.getMessages(), state: core.getState() });
+            }
+          }
         },
         onAddToolResult: (options: Parameters<typeof core.addToolResult>[0]) => core.addToolResult(options),
         onResume: (config: Parameters<typeof core.resume>[0]) => core.resume(config),
@@ -614,7 +626,7 @@ export function useCustomRuntime(
   }, [core]);
 
   const lastLoadedThreadIdRef = useRef<string | undefined>(undefined);
-  const initialLoadResolvedRef = useRef(false);
+  const suppressNewThreadRef = useRef(false);
 
   useEffect(() => {
     if (!options.initialized) return;
@@ -634,7 +646,8 @@ export function useCustomRuntime(
         if (lastLoadedThreadIdRef.current !== targetId) return;
         c.applyExternalMessages(result.messages);
         c.loadExternalState((result.state ?? {}) as any);
-        initialLoadResolvedRef.current = true;
+        suppressNewThreadRef.current = true;
+        setTimeout(() => { suppressNewThreadRef.current = false; }, 500);
       } catch (e) {
         console.error('[DEBUG] auto-load ERROR:', e);
       }
