@@ -468,7 +468,7 @@ export function useCustomRuntime(
       const raw = core.getMessages();
       const messages = hideRunningOnStreamedMessages(applySkipHeuristic(raw));
 
-      const computedIsRunning = cancelLockRef.current ? false : core.isRunning();
+      const computedIsRunning = cancelLockRef.current ? false : messages.some((m) => m.role === "assistant" && m.status?.type === "running");
 
       return {
         isLoading: core.isLoading,
@@ -611,22 +611,46 @@ export function useCustomRuntime(
   const lastLoadedThreadIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    if (!options.initialized) return;
+    console.log('[DEBUG] auto-load effect FIRE, initialized:', options.initialized, 'threadId:', threadListAdapter?.threadId);
+    if (!options.initialized) {
+      console.log('[DEBUG] auto-load skip: !initialized');
+      return;
+    }
 
     const adapter = threadListAdapter;
     const c = coreRef.current;
-    if (!adapter?.threadId || !c || c.isLoading) return;
-    if (lastLoadedThreadIdRef.current === adapter.threadId) return;
+    console.log('[DEBUG] auto-load adapter threadId:', adapter?.threadId, 'core exists:', !!c, 'lastLoaded:', lastLoadedThreadIdRef.current);
+    if (!adapter?.threadId || !c) {
+      console.log('[DEBUG] auto-load skip: no threadId or no core');
+      return;
+    }
+    if (lastLoadedThreadIdRef.current === adapter.threadId) {
+      console.log('[DEBUG] auto-load skip: already loaded');
+      return;
+    }
 
     const doLoad = async () => {
-      if (!adapter.onSwitchToThread) return;
+      if (!adapter.onSwitchToThread) {
+        console.log('[DEBUG] auto-load skip: no onSwitchToThread');
+        return;
+      }
       const targetId = adapter.threadId;
       lastLoadedThreadIdRef.current = targetId;
       (options.agent as any).threadId = targetId;
-      const result = await adapter.onSwitchToThread(targetId);
-      if (lastLoadedThreadIdRef.current !== targetId) return;
-      c.applyExternalMessages(result.messages);
-      c.loadExternalState((result.state ?? {}) as any);
+      console.log('[DEBUG] auto-load calling onSwitchToThread:', targetId);
+      try {
+        const result = await adapter.onSwitchToThread(targetId);
+        console.log('[DEBUG] auto-load onSwitchToThread result msgs:', result.messages.length);
+        if (lastLoadedThreadIdRef.current !== targetId) {
+          console.log('[DEBUG] auto-load stale guard triggered, expected:', targetId, 'actual:', lastLoadedThreadIdRef.current);
+          return;
+        }
+        c.applyExternalMessages(result.messages);
+        c.loadExternalState((result.state ?? {}) as any);
+        console.log('[DEBUG] auto-load DONE');
+      } catch (e) {
+        console.error('[DEBUG] auto-load ERROR:', e);
+      }
     };
     doLoad();
   }, [options.initialized, threadListAdapter?.threadId, coreRef.current]);
