@@ -48,6 +48,7 @@ export function useThreadManager(userId: string) {
     console.log('[DEBUG] refreshThreads from BE:', JSON.stringify(beThreads.map(t => ({ id: t.id, title: t.title, state: t.state }))));
 
     setState((prev) => {
+      const prevCount = prev.threads.size;
       const next = new Map(prev.threads);
       const beIds = new Set(beThreads.map((t) => t.id));
 
@@ -85,6 +86,7 @@ export function useThreadManager(userId: string) {
       const activeId =
         (prevId && next.has(prevId)) ? prevId
         : (beThreads[0]?.id ?? [...next.keys()][0]!);
+      console.log('[DEBUG] refreshThreads done - prevCount:', prevCount, 'nextCount:', next.size, 'deleted:', prevCount - next.size, 'beCount:', beThreads.length, 'activeId:', activeId);
       return { threads: next, activeThreadId: activeId, initialized: true };
     });
   }, [userId]);
@@ -99,6 +101,7 @@ export function useThreadManager(userId: string) {
       data: { messages: ThreadMessage[]; state?: ReadonlyJSONValue },
     ) => {
       setState((prev) => {
+        const prevCount = prev.threads.size;
         const next = new Map(prev.threads);
         const existing = next.get(id);
         if (existing) {
@@ -108,7 +111,7 @@ export function useThreadManager(userId: string) {
               ? (data.state as Record<string, unknown>).thread_title
               : undefined;
           const newTitle = (stateTitle as string | undefined) ?? userTitle ?? existing.title;
-          console.log('[DEBUG] saveThread id:', id, 'stateTitle:', stateTitle, 'userTitle:', userTitle, 'existing.title:', existing.title, '-> newTitle:', newTitle, 'msgsCount:', data.messages.length);
+          console.log('[DEBUG] saveThread id:', id, 'stateTitle:', stateTitle, 'userTitle:', userTitle, 'existing.title:', existing.title, '-> newTitle:', newTitle, 'msgsCount:', data.messages.length, 'prevCount:', prevCount, 'nextCount:', next.size);
           next.set(id, {
             ...existing,
             messages: data.messages,
@@ -116,7 +119,7 @@ export function useThreadManager(userId: string) {
             title: newTitle,
           });
         } else {
-          console.log('[DEBUG] saveThread id NOT FOUND in local state:', id);
+          console.log('[DEBUG] saveThread id NOT FOUND in local state:', id, 'prevCount:', prevCount);
         }
         return { ...prev, threads: next };
       });
@@ -127,6 +130,7 @@ export function useThreadManager(userId: string) {
   const createThread = useCallback(() => {
     const id = crypto.randomUUID();
     setState((prev) => {
+      const prevCount = prev.threads.size;
       const next = new Map(prev.threads);
       next.set(id, {
         id,
@@ -134,6 +138,7 @@ export function useThreadManager(userId: string) {
         messages: [],
         state: undefined,
       });
+      console.log('[DEBUG] createThread id:', id, 'prevCount:', prevCount, 'nextCount:', next.size);
       return { ...prev, threads: next, activeThreadId: id };
     });
     return id;
@@ -141,8 +146,10 @@ export function useThreadManager(userId: string) {
 
   const deleteThread = useCallback(
     (id: string) => {
+      console.log('[DEBUG] deleteThread called id:', id);
       deleteThreadOnBE(id, userId).catch(() => {});
       setState((prev) => {
+        const prevCount = prev.threads.size;
         const next = new Map(prev.threads);
         const wasActive = prev.activeThreadId === id;
         next.delete(id);
