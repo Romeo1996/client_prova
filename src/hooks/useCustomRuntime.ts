@@ -634,7 +634,7 @@ export function useCustomRuntime(
         console.log('[DEBUG] auto-load skip: no onSwitchToThread');
         return;
       }
-      const targetId = adapter.threadId;
+      const targetId = adapter.threadId!;
       lastLoadedThreadIdRef.current = targetId;
       (options.agent as any).threadId = targetId;
       console.log('[DEBUG] auto-load calling onSwitchToThread:', targetId);
