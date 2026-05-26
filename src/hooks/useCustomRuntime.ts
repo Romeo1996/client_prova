@@ -647,10 +647,10 @@ export function useCustomRuntime(
       try {
         const result = await adapter.onSwitchToThread(targetId);
         if (lastLoadedThreadIdRef.current !== targetId) return;
-        c.applyExternalMessages(result.messages);
-        c.loadExternalState((result.state ?? {}) as any);
         suppressNewThreadRef.current = true;
         setTimeout(() => { suppressNewThreadRef.current = false; }, 500);
+        c.applyExternalMessages(result.messages);
+        c.loadExternalState((result.state ?? {}) as any);
       } catch (e) {
         console.error('[DEBUG] auto-load ERROR:', e);
       }
