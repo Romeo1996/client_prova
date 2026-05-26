@@ -228,9 +228,12 @@ export function useCustomRuntime(
     const origFetch = window.fetch.bind(window);
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const isChat = url.includes("/api/agent/chat");
+      if (isChat) console.log('[FE_DEBUG] fetch START url:', url, 'signal aborted:', init?.signal?.aborted);
       try {
         const response = await origFetch(input, init);
-        if (url.includes("/api/agent/chat") && response.ok && response.body) {
+        if (isChat && response.ok && response.body) {
+          console.log('[FE_DEBUG] fetch RESPONSE OK, starting SSE read');
           const reader = response.body.getReader();
           let sawRunError = false;
           let errorMsgIdCount = 0;
@@ -241,7 +244,10 @@ export function useCustomRuntime(
               try {
                 while (true) {
                   const { done, value } = await reader.read();
-                  if (done) break;
+                  if (done) {
+                    console.log('[FE_DEBUG] SSE reader DONE');
+                    break;
+                  }
                   buffer += decoder.decode(value, { stream: true });
                   let eventEnd;
                   while ((eventEnd = buffer.indexOf('\n\n')) !== -1) {
@@ -282,16 +288,19 @@ export function useCustomRuntime(
                 if (buffer.length > 0) {
                   controller.enqueue(new TextEncoder().encode(buffer));
                 }
-              } catch {
-                // AbortError and other stream errors are silently handled
+                console.log('[FE_DEBUG] SSE stream completed normally');
+              } catch (err) {
+                console.log('[FE_DEBUG] SSE stream ERROR:', err instanceof Error ? err.name + ': ' + err.message : String(err));
               } finally {
                 try { controller.close(); } catch {}
               }
             },
             cancel() {
+              console.log('[FE_DEBUG] SSE stream CANCELLED by ReadableStream cancel()');
               reader.cancel().catch(() => {});
             },
           });
+          console.log('[FE_DEBUG] Returning new Response with new stream');
           return new Response(newStream, {
             status: response.status,
             statusText: response.statusText,
@@ -300,6 +309,7 @@ export function useCustomRuntime(
         }
         return response;
       } catch (err) {
+        console.log('[FE_DEBUG] fetch ERROR:', err instanceof Error ? err.name + ': ' + err.message : String(err), 'signal:', init?.signal?.aborted);
         throw err;
       }
     };
@@ -497,9 +507,12 @@ export function useCustomRuntime(
               }
               return;
             }
+            console.log('[FE_DEBUG] onNew cancel - hasRunning=true, calling core.cancel()');
             cancelLockRef.current = true;
             await core.cancel();
+            console.log('[FE_DEBUG] onNew cancel - core.cancel() DONE, calling abortRun()');
             (options.agent as HttpAgent).abortRun();
+            console.log('[FE_DEBUG] onNew cancel - abortRun() DONE');
             const msgs = core.getMessages();
             const idx = msgs.findLastIndex((m) => m.role === "assistant");
             if (idx !== -1) {
@@ -562,9 +575,13 @@ export function useCustomRuntime(
           return core.reload(parentId, config);
         },
         onCancel: async () => {
+          console.log('[FE_DEBUG] onCancel START');
           cancelLockRef.current = true;
+          console.log('[FE_DEBUG] onCancel calling core.cancel()');
           await core.cancel();
+          console.log('[FE_DEBUG] onCancel core.cancel() DONE, calling abortRun()');
           (options.agent as HttpAgent).abortRun();
+          console.log('[FE_DEBUG] onCancel abortRun() DONE');
           const msgs = core.getMessages();
           const idx = msgs.findLastIndex((m) => m.role === "assistant");
           if (idx !== -1) {
