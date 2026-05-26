@@ -231,11 +231,15 @@ export function useCustomRuntime(
       const isChat = url.includes("/api/agent/chat");
       if (isChat) console.log('[FE_DEBUG] fetch START url:', url, 'signal aborted:', init?.signal?.aborted);
       try {
-        const response = await origFetch(input, init);
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+        if (init?.signal) {
+          init.signal.addEventListener('abort', () => abortController.abort(), { once: true });
+        }
+        const response = await origFetch(input, { ...init, signal: abortController.signal });
           if (isChat && response.ok && response.body) {
             console.log('[FE_DEBUG] fetch RESPONSE OK, starting SSE read');
             const reader = response.body.getReader();
-            activeReaderRef.current = reader;
           let sawRunError = false;
           let errorMsgIdCount = 0;
           const decoder = new TextDecoder();
@@ -292,18 +296,18 @@ export function useCustomRuntime(
                 console.log('[FE_DEBUG] SSE stream completed normally');
               } catch (err) {
                 if (err instanceof DOMException && err.name === 'AbortError') {
-                  console.log('[FE_DEBUG] SSE stream ABORTED (reader cancelled)');
+                  console.log('[FE_DEBUG] SSE stream ABORTED');
                 } else {
                   console.log('[FE_DEBUG] SSE stream ERROR:', err instanceof Error ? err.name + ': ' + err.message : String(err));
                 }
               } finally {
-                activeReaderRef.current = null;
+                abortControllerRef.current = null;
                 try { controller.close(); } catch {}
               }
             },
             cancel() {
               console.log('[FE_DEBUG] SSE stream CANCELLED by ReadableStream cancel()');
-              activeReaderRef.current = null;
+              abortControllerRef.current = null;
               reader.cancel().catch(() => {});
             },
           });
@@ -347,7 +351,7 @@ export function useCustomRuntime(
   }));
 
   const cancelLockRef = useRef(false);
-  const activeReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const toolInvocationsRef = useRef({
     reset: () => {},
@@ -518,12 +522,11 @@ export function useCustomRuntime(
             console.log('[FE_DEBUG] onNew cancel - hasRunning=true, calling core.cancel()');
             cancelLockRef.current = true;
             await core.cancel();
-            console.log('[FE_DEBUG] onNew cancel - core.cancel() DONE, calling abortRun()');
-            (options.agent as HttpAgent).abortRun();
-            console.log('[FE_DEBUG] onNew cancel - abortRun() DONE, cancelling reader');
-            await activeReaderRef.current?.cancel();
-            activeReaderRef.current = null;
-            console.log('[FE_DEBUG] onNew cancel - reader cancelled');
+            console.log('[FE_DEBUG] onNew cancel - core.cancel() DONE, aborting HTTP');
+            abortControllerRef.current?.abort();
+            abortControllerRef.current = null;
+            console.log('[FE_DEBUG] onNew cancel - HTTP aborted');
+            try { await (options.agent as HttpAgent).abortRun(); } catch {}
             const msgs = core.getMessages();
             const idx = msgs.findLastIndex((m) => m.role === "assistant");
             if (idx !== -1) {
@@ -590,12 +593,11 @@ export function useCustomRuntime(
           cancelLockRef.current = true;
           console.log('[FE_DEBUG] onCancel calling core.cancel()');
           await core.cancel();
-          console.log('[FE_DEBUG] onCancel core.cancel() DONE, calling abortRun()');
-          (options.agent as HttpAgent).abortRun();
-          console.log('[FE_DEBUG] onCancel abortRun() DONE, cancelling reader');
-          await activeReaderRef.current?.cancel();
-          activeReaderRef.current = null;
-          console.log('[FE_DEBUG] onCancel reader cancelled');
+          console.log('[FE_DEBUG] onCancel core.cancel() DONE, aborting HTTP');
+          abortControllerRef.current?.abort();
+          abortControllerRef.current = null;
+          console.log('[FE_DEBUG] onCancel HTTP aborted');
+          try { await (options.agent as HttpAgent).abortRun(); } catch {}
           const msgs = core.getMessages();
           const idx = msgs.findLastIndex((m) => m.role === "assistant");
           if (idx !== -1) {
