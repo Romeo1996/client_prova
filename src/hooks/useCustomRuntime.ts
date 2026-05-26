@@ -640,6 +640,9 @@ export function useCustomRuntime(
       if (!adapter.onSwitchToThread) return;
       const targetId = adapter.threadId!;
       lastLoadedThreadIdRef.current = targetId;
+      const existing = adapter.getThread?.(targetId);
+      const isLocalOnly = !existing || (!existing.state && existing.messages.length === 0);
+      if (isLocalOnly) return;
       (options.agent as any).threadId = targetId;
       try {
         const result = await adapter.onSwitchToThread(targetId);
