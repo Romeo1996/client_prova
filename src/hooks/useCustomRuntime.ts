@@ -53,6 +53,7 @@ export type ThreadListAdapter = {
     state?: ReadonlyJSONValue,
     targetThreadId?: string,
   ) => void;
+  getThread?: (id: string) => { messages: ThreadMessage[]; state?: ReadonlyJSONValue } | undefined;
 };
 
 type RunCompleteData = {
