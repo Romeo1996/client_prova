@@ -76,14 +76,6 @@ export function useThreadManager(userId: string) {
         }
       }
 
-      // Remove local empty threads that don't exist on BE,
-      // but keep at least one thread so there's always an active chat.
-      for (const [id, thread] of next) {
-        if (!beIds.has(id) && thread.messages.length === 0 && next.size > 1) {
-          next.delete(id);
-        }
-      }
-
       if (next.size === 0) {
         const id = crypto.randomUUID();
         next.set(id, { id, title: "New Chat", messages: [], state: undefined });
