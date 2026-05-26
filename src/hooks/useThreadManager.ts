@@ -50,7 +50,6 @@ export function useThreadManager(userId: string) {
     setState((prev) => {
       const prevCount = prev.threads.size;
       const next = new Map(prev.threads);
-      const beIds = new Set(beThreads.map((t) => t.id));
 
       for (const t of beThreads) {
         if (next.has(t.id)) {
@@ -149,9 +148,9 @@ export function useThreadManager(userId: string) {
       console.log('[DEBUG] deleteThread called id:', id);
       deleteThreadOnBE(id, userId).catch(() => {});
       setState((prev) => {
-        const prevCount = prev.threads.size;
         const next = new Map(prev.threads);
         const wasActive = prev.activeThreadId === id;
+        console.log('[DEBUG] deleteThread inside setState id:', id, 'prevCount:', prev.threads.size, 'wasActive:', wasActive);
         next.delete(id);
 
         let newActiveId = prev.activeThreadId;
