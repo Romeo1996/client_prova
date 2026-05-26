@@ -99,6 +99,19 @@ function applySkipHeuristic(messages: readonly ThreadMessage[]): ThreadMessage[]
   return result;
 }
 
+function hideRunningOnStreamedMessages(
+  messages: readonly ThreadMessage[],
+): ThreadMessage[] {
+  return messages.map((m) => {
+    if (m.role !== "assistant" || m.status?.type !== "running") return m;
+    const hasVisibleText = m.content.some(
+      (p) => p.type === "text" && p.text.trim().length > 0,
+    );
+    if (!hasVisibleText) return m;
+    return { ...m, status: { type: "complete", reason: "unknown" } };
+  });
+}
+
 export function useCustomRuntime(
   options: UseCustomRuntimeOptions,
 ): AgUiAssistantRuntime {
@@ -452,9 +465,9 @@ export function useCustomRuntime(
     () => {
       void _version;
       const raw = core.getMessages();
-      const messages = applySkipHeuristic(raw);
+      const messages = hideRunningOnStreamedMessages(applySkipHeuristic(raw));
 
-      const computedIsRunning = cancelLockRef.current ? false : messages.some((m) => m.role === "assistant" && m.status?.type === "running");
+      const computedIsRunning = cancelLockRef.current ? false : core.isRunning();
 
       return {
         isLoading: core.isLoading,
@@ -593,6 +606,25 @@ export function useCustomRuntime(
   useEffect(() => {
     core.__internal_load();
   }, [core]);
+
+  const lastLoadedThreadIdRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    const adapter = threadListAdapter;
+    const c = coreRef.current;
+    if (!adapter?.threadId || !c || c.isLoading) return;
+    if (lastLoadedThreadIdRef.current === adapter.threadId) return;
+
+    const doLoad = async () => {
+      if (!adapter.onSwitchToThread) return;
+      lastLoadedThreadIdRef.current = adapter.threadId;
+      (options.agent as any).threadId = adapter.threadId;
+      const result = await adapter.onSwitchToThread(adapter.threadId);
+      c.applyExternalMessages(result.messages);
+      c.loadExternalState((result.state ?? {}) as any);
+    };
+    doLoad();
+  }, [threadListAdapter?.threadId, coreRef.current]);
 
   return runtime;
 }
