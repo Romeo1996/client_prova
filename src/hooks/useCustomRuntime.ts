@@ -520,6 +520,7 @@ export function useCustomRuntime(
                 cb({ threadId, messages: [...core.getMessages()], state: core.getState() });
             }
           }
+          }
           cancelLockRef.current = false;
           try {
             await core.append(message);
