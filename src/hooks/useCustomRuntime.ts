@@ -517,8 +517,7 @@ export function useCustomRuntime(
               const c = coreRef.current as any;
               const threadId = c?.agent?.threadId;
               if (threadId) {
-                cb({ threadId, messages: core.getMessages(), state: core.getState() });
-              }
+                cb({ threadId, messages: [...core.getMessages()], state: core.getState() });
             }
           }
           cancelLockRef.current = false;
@@ -582,7 +581,7 @@ export function useCustomRuntime(
             const c = coreRef.current as any;
             const threadId = c?.agent?.threadId;
             if (threadId) {
-              cb({ threadId, messages: core.getMessages(), state: core.getState() });
+              cb({ threadId, messages: [...core.getMessages()], state: core.getState() });
             }
           }
         },
